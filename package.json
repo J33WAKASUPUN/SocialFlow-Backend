@@ -38,7 +38,7 @@
     "cloudinary": "^2.7.0",
     "compression": "^1.7.4",
     "connect-mongo": "^5.1.0",
-    "connect-redis": "^7.1.0",
+    "connect-redis": "^7.1.1",
     "cors": "^2.8.5",
     "cron": "^4.3.3",
     "crypto-js": "^4.2.0",

@@ -24,55 +24,49 @@ class ServerBootstrap {
     this.isShuttingDown = false;
   }
 
-  async start() {
+async start() {
     console.log("🔵 [4] ServerBootstrap.start() called.");
     try {
       logger.info("🚀 Initializing Social Media Platform...");
 
-      // 1. CREATE APP & START HTTP SERVER IMMEDIATELY
+      // 1. Validate Env FIRST
+      validateEnv();
+
+      // 2. Connect Databases (WAIT for them to be ready)
+      // We await this so the app doesn't start until DBs are connected
+      await this.connectServices(); 
+
+      // 3. Create App & Start HTTP Server
       const app = createApp();
       await this.startHttpServer(app);
-
-      // 2. Validate Env (Non-blocking)
-      try {
-        validateEnv();
-      } catch (e) {
-        logger.error("❌ Env Validation Error:", e.message);
-      }
-
-      // 3. Connect Databases (Background)
-      this.connectServices();
 
     } catch (error) {
       console.error("🔴 Fatal Error during startup:", error);
       logger.error("❌ Fatal Error:", error);
+      process.exit(1); // Exit if DB connection fails
     }
   }
 
-  async connectServices() {
-    try {
-      console.log("🔵 [5] Connecting to Services...");
-      // MongoDB
-      if (process.env.MONGODB_URI) {
-        await database.connect();
-        logger.info("✅ MongoDB Connected");
-      }
-
-      // Redis
-      if (process.env.REDIS_HOST) {
-        await redisClient.connect();
-        logger.info("✅ Redis Connected");
-      }
-
-      // Workers
-      workerManager.start();
-      logger.info("✅ Workers Running");
-      
-      this.logStartupInfo();
-
-    } catch (error) {
-      logger.error("❌ Service Connection Failed (Non-fatal):", error.message);
+async connectServices() {    
+    console.log("🔵 [5] Connecting to Services...");
+    
+    // MongoDB
+    if (process.env.MONGODB_URI) {
+      await database.connect();
+      logger.info("✅ MongoDB Connected");
     }
+
+    // Redis
+    if (process.env.REDIS_HOST) {
+      await redisClient.connect();
+      logger.info("✅ Redis Connected");
+    }
+
+    // Workers
+    workerManager.start();
+    logger.info("✅ Workers Running");
+    
+    this.logStartupInfo();
   }
 
   async startHttpServer(app) {

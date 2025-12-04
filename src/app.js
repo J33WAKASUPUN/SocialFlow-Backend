@@ -10,10 +10,11 @@ const { apiLimiter } = require("./middlewares/rateLimiter");
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const database = require("./config/database");
+const RedisStore = require("connect-redis").default;
 const redisClient = require("./config/redis");
 const passport = require("passport");
 const session = require("express-session");
-const MongoStore = require("connect-mongo");
+// const MongoStore = require("connect-mongo");
 require("./config/googleOauth");
 
 /**
@@ -21,6 +22,7 @@ require("./config/googleOauth");
  */
 function createApp() {
   const app = express();
+  app.set('trust proxy', 1);
 
   // ============================================
   // SECURITY MIDDLEWARE
@@ -111,18 +113,20 @@ function createApp() {
   }, express.static(path.join(__dirname, "../uploads/media")));
 
   // ============================================
-  // SESSION (REQUIRED FOR PASSPORT)
+  // SESSION (NOW USING REDIS)
   // ============================================
   app.use(
     session({
       secret: process.env.SESSION_SECRET || 'fallback-secret-change-in-production',
       resave: false,
       saveUninitialized: false,
-      store: MongoStore.create({
-        mongoUrl: process.env.MONGODB_URI,
-        ttl: parseInt(process.env.SESSION_LIFETIME) || 7200,
-        touchAfter: 24 * 3600,
+      
+      store: new RedisStore({
+        client: redisClient.getSession(), // Uses the client from your RedisClient.js
+        prefix: "sess:", // Optional: adds a prefix to session keys in Redis
+        ttl: parseInt(process.env.SESSION_LIFETIME) || 7200, // Time to live in seconds
       }),
+
       cookie: {
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,

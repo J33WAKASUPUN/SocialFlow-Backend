@@ -32,13 +32,26 @@ class RedisClient {
       hasPassword: !!password
     });
 
-    const config = {
+   const config = {
       database: db,
       socket: {
         host: host,
         port: port,
+        tls: isTls,
+        rejectUnauthorized: false, 
+        
+        // -----------------------------------------------------------
+        // 🔴 CRITICAL FIX FOR AZURE + RENDER
+        // -----------------------------------------------------------
+        // Azure/Render load balancers kill idle connections after ~60s.
+        // This forces node-redis to send a "PING" every 20s to stay alive.
+        pingInterval: 20000, 
+        
+        // Lower TCP keepalive to ensure the socket stays active at OS level
+        keepAlive: 10000, 
+        // -----------------------------------------------------------
         reconnectStrategy: (retries) => {
-          if (retries > 10) { // Increased from 5 to 10
+          if (retries > 20) { // Increased from 5 to 10
             logger.error(`Redis ${name} max retries reached`);
             return new Error('Max retries reached');
           }
@@ -46,7 +59,7 @@ class RedisClient {
           logger.warn(`Redis ${name} reconnecting... attempt ${retries}, delay: ${delay}ms`);
           return delay;
         },
-        connectTimeout: 15000, // Increased from 10000
+        connectTimeout: 20000,
         keepAlive: 30000, // Keep connection alive
         noDelay: true, // Disable Nagle's algorithm for lower latency
         tls: isTls,
