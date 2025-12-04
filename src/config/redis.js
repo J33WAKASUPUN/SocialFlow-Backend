@@ -38,18 +38,30 @@ class RedisClient {
         host: host,
         port: port,
         reconnectStrategy: (retries) => {
-          if (retries > 5) {
+          if (retries > 10) { // Increased from 5 to 10
             logger.error(`Redis ${name} max retries reached`);
             return new Error('Max retries reached');
           }
-          const delay = Math.min(retries * 100, 2000);
+          const delay = Math.min(retries * 100, 3000); // Increased max delay
           logger.warn(`Redis ${name} reconnecting... attempt ${retries}, delay: ${delay}ms`);
           return delay;
         },
-        connectTimeout: 10000, // Increased for Azure
-        keepAlive: 30000,
+        connectTimeout: 15000, // Increased from 10000
+        keepAlive: 30000, // Keep connection alive
+        noDelay: true, // Disable Nagle's algorithm for lower latency
         tls: isTls,
         rejectUnauthorized: false, // Required for Azure Redis
+      },
+      // Add these new options for better connection handling
+      commandsQueueMaxLength: 1000,
+      enableOfflineQueue: true,
+      enableReadyCheck: true,
+      maxRetriesPerRequest: 3,
+      retryStrategy: (times) => {
+        if (times > 10) {
+          return null; // Stop retrying
+        }
+        return Math.min(times * 100, 3000);
       },
     };
 
@@ -60,16 +72,24 @@ class RedisClient {
 
     const client = redis.createClient(config);
 
-    client.on('connect', () => {
-      logger.info(`✅ Redis ${name} connected (DB: ${db})`);
+    // Improved error handling - suppress ECONNRESET spam
+    client.on('error', (err) => {
+      // Only log ECONNRESET errors once per minute to avoid spam
+      if (err.code === 'ECONNRESET') {
+        if (!this.lastEconnresetLog || Date.now() - this.lastEconnresetLog > 60000) {
+          logger.error(`Queue error: ${err.message}`);
+          this.lastEconnresetLog = Date.now();
+        }
+      } else {
+        logger.error(`❌ Redis ${name} error:`, {
+          message: err.message,
+          code: err.code,
+        });
+      }
     });
 
-    client.on('error', (err) => {
-      logger.error(`❌ Redis ${name} error:`, {
-        message: err.message,
-        code: err.code,
-        stack: err.stack
-      });
+    client.on('connect', () => {
+      logger.info(`✅ Redis ${name} connected (DB: ${db})`);
     });
 
     client.on('ready', () => {
@@ -132,6 +152,9 @@ class RedisClient {
       // Setup graceful shutdown
       this.setupGracefulShutdown();
 
+      // Start periodic health check
+      this.startHealthCheck();
+
       this.isConnecting = false;
       return true;
     } catch (error) {
@@ -146,6 +169,25 @@ class RedisClient {
       
       throw error;
     }
+  }
+
+  /**
+   * Start periodic health check to keep connections alive
+   */
+  startHealthCheck() {
+    // Ping Redis every 20 seconds to keep connection alive
+    this.healthCheckInterval = setInterval(async () => {
+      try {
+        if (this.queueClient?.isOpen) {
+          await this.queueClient.ping();
+        }
+      } catch (error) {
+        // Silently handle ping errors
+        if (error.code !== 'ECONNRESET') {
+          logger.debug('Redis ping error:', error.message);
+        }
+      }
+    }, 20000); // Every 20 seconds
   }
 
   /**
@@ -166,6 +208,12 @@ class RedisClient {
   setupGracefulShutdown() {
     const shutdown = async (signal) => {
       logger.info(`📴 Received ${signal}, closing Redis connections...`);
+      
+      // Clear health check interval
+      if (this.healthCheckInterval) {
+        clearInterval(this.healthCheckInterval);
+      }
+      
       await this.disconnect();
       process.exit(0);
     };
@@ -179,6 +227,11 @@ class RedisClient {
    */
   async disconnect() {
     try {
+      // Clear health check interval
+      if (this.healthCheckInterval) {
+        clearInterval(this.healthCheckInterval);
+      }
+
       const promises = [];
 
       if (this.cacheClient?.isOpen) {
