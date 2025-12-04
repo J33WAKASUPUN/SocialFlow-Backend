@@ -1,0 +1,48 @@
+<!-- filepath: server/src/templates/emails/channel-disconnected.hbs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
+        .header { background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); padding: 40px 20px; text-align: center; }
+        .header h1 { color: #ffffff; font-size: 24px; margin: 0; }
+        .content { padding: 40px 30px; }
+        .button { display: inline-block; padding: 14px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff !important; text-decoration: none; border-radius: 5px; font-weight: 600; margin: 20px 0; }
+        .warning-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
+        .footer { background-color: #f8f9fa; padding: 30px; text-align: center; color: #6c757d; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚠️ Account Disconnected</h1>
+        </div>
+        <div class="content">
+            <h2 style="color: #ffc107; margin-bottom: 20px;">Hi {{userName}},</h2>
+            <p>Your <strong>{{platformName}}</strong> account for <strong>{{brandName}}</strong> has been disconnected.</p>
+            
+            <div class="warning-box">
+                <p><strong>This could be due to:</strong></p>
+                <ul style="margin: 10px 0 0 20px;">
+                    <li>Expired authentication token</li>
+                    <li>Password change on {{platformName}}</li>
+                    <li>Revoked app permissions</li>
+                </ul>
+            </div>
+
+            <p style="margin: 20px 0;">Reconnect your account to continue publishing and tracking analytics.</p>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{reconnectUrl}}" class="button">Reconnect Account</a>
+            </div>
+        </div>
+        <div class="footer">
+            <p>&copy; 2024 {{appName}}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

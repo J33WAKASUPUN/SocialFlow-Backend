@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # Redis - Cache, Session, Queue
+  redis:
+    image: redis:7-alpine
+    container_name: smp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --tcp-keepalive 60
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - smp-network
+
+  # Redis Commander - GUI for Redis (Optional)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: smp-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - smp-network
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  smp-network:
+    driver: bridge

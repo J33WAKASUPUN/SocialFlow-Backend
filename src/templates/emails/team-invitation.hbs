@@ -1,0 +1,47 @@
+<!-- filepath: server/src/templates/emails/team-invitation.hbs -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center; }
+        .header h1 { color: #ffffff; font-size: 24px; margin: 0; }
+        .content { padding: 40px 30px; }
+        .button { display: inline-block; padding: 14px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff !important; text-decoration: none; border-radius: 5px; font-weight: 600; margin: 20px 0; }
+        .highlight-box { background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .footer { background-color: #f8f9fa; padding: 30px; text-align: center; color: #6c757d; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{appName}}</h1>
+        </div>
+        <div class="content">
+            <h2 style="color: #667eea; margin-bottom: 20px;">You're Invited to Join a Team!</h2>
+            <p><strong>{{inviterName}}</strong> has invited you to collaborate on:</p>
+            
+            <div class="highlight-box">
+                <h3 style="color: #667eea; text-align: center; font-size: 20px;">{{brandName}}</h3>
+            </div>
+
+            <p style="margin: 20px 0;">Accept the invitation to start managing social media accounts together and collaborate on content.</p>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{acceptUrl}}" class="button">Accept Invitation</a>
+            </div>
+
+            <p style="color: #6c757d; font-size: 14px; margin-top: 30px;">
+                This invitation link will expire in 7 days.
+            </p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2024 {{appName}}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
