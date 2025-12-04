@@ -88,7 +88,7 @@ const notificationSchema = new mongoose.Schema({
   // Metadata
   expiresAt: {
     type: Date,
-    index: true,
+    // index: true,
   },
   
 }, {
