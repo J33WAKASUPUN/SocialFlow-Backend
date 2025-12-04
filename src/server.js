@@ -1,5 +1,5 @@
 // ---------------------------------------------------------
-// 🚨 DEBUG LOGS - START NOW
+// 🚨 DEBUG LOGS
 // ---------------------------------------------------------
 console.log("🔵 [1] Node.js process started.");
 console.log("🔵 [2] Loading modules...");
