@@ -10,8 +10,12 @@ class OrganizationService {
   async createOrganization(userId, data) {
     const { name, description, settings } = data;
 
-    // Check if organization name already exists
-    const existing = await Organization.findOne({ name });
+    // Check if organization name already exists (exclude deleted)
+    const existing = await Organization.findOne({ 
+      name, 
+      status: { $ne: 'deleted' } 
+    });
+    
     if (existing) {
       throw new Error('Organization name already exists');
     }
@@ -48,13 +52,17 @@ class OrganizationService {
    */
   async getUserOrganizations(userId) {
     const memberships = await Membership.find({ user: userId })
-      .populate('organization')
+      .populate({
+        path: 'organization',
+        match: { status: { $ne: 'deleted' } }, // Filter out deleted organizations
+      })
       .populate('brand');
 
     // Group by organization and include user's role
     const orgMap = new Map();
 
     for (const membership of memberships) {
+      // Skip if organization is null (deleted) or doesn't exist
       if (!membership.organization) continue;
 
       const orgId = membership.organization._id.toString();
@@ -68,8 +76,8 @@ class OrganizationService {
         });
       }
 
-      // If membership has brand, add it
-      if (membership.brand) {
+      // If membership has brand and brand is not deleted, add it
+      if (membership.brand && membership.brand.status !== 'deleted') {
         const org = orgMap.get(orgId);
         org.brands.push({
           ...membership.brand.toObject(),
@@ -86,7 +94,10 @@ class OrganizationService {
    * Update organization
    */
   async updateOrganization(organizationId, userId, data) {
-    const organization = await Organization.findById(organizationId);
+    const organization = await Organization.findOne({
+      _id: organizationId,
+      status: { $ne: 'deleted' },
+    });
 
     if (!organization) {
       throw new Error('Organization not found');
@@ -115,10 +126,13 @@ class OrganizationService {
   }
 
   /**
-   * Delete organization (soft delete)
+   * Delete organization (soft delete with cascade)
    */
   async deleteOrganization(organizationId, userId) {
-    const organization = await Organization.findById(organizationId);
+    const organization = await Organization.findOne({
+      _id: organizationId,
+      status: { $ne: 'deleted' },
+    });
 
     if (!organization) {
       throw new Error('Organization not found');
@@ -129,17 +143,30 @@ class OrganizationService {
       throw new Error('Only the owner can delete the organization');
     }
 
-    // Soft delete
-    organization.status = 'deleted';
-    await organization.save();
-
-    // Also soft delete all brands under this organization
+    // 1. Soft delete all brands under this organization
     await Brand.updateMany(
       { organization: organizationId },
-      { status: 'deleted', deletedAt: new Date() }
+      { 
+        status: 'deleted', 
+        deletedAt: new Date() 
+      }
     );
 
-    return organization;
+    // 2. Delete all memberships for this organization
+    await Membership.deleteMany({ organization: organizationId });
+
+    // 3. Soft delete the organization
+    organization.status = 'deleted';
+    organization.deletedAt = new Date();
+    await organization.save();
+
+    logger.info('Organization deleted', { 
+      organizationId, 
+      userId,
+      name: organization.name 
+    });
+
+    return { success: true, message: 'Organization deleted successfully' };
   }
 }
 

@@ -76,13 +76,31 @@ class OrganizationController {
    */
   async deleteOrganization(req, res, next) {
     try {
-      await organizationService.deleteOrganization(req.params.id, req.user._id);
+      const result = await organizationService.deleteOrganization(
+        req.params.id, 
+        req.user._id
+      );
 
       res.json({
         success: true,
-        message: 'Organization deleted successfully',
+        message: result.message || 'Organization deleted successfully',
       });
     } catch (error) {
+      // Return proper error response
+      if (error.message === 'Organization not found') {
+        return res.status(404).json({
+          success: false,
+          message: error.message,
+        });
+      }
+      
+      if (error.message === 'Only the owner can delete the organization') {
+        return res.status(403).json({
+          success: false,
+          message: error.message,
+        });
+      }
+      
       next(error);
     }
   }

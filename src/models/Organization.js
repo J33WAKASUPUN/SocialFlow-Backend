@@ -4,13 +4,13 @@ const organizationSchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
   },
   slug: {
     type: String,
     unique: true,
     lowercase: true,
+    sparse: true,
   },
   description: {
     type: String,
@@ -51,9 +51,19 @@ const organizationSchema = new mongoose.Schema({
     enum: ['active', 'suspended', 'deleted'],
     default: 'active',
   },
+  deletedAt: Date,
 }, {
   timestamps: true,
 });
+
+// Update unique index to exclude deleted organizations
+organizationSchema.index(
+  { name: 1 }, 
+  { 
+    unique: true, 
+    partialFilterExpression: { status: { $ne: 'deleted' } } 
+  }
+);
 
 // Auto-generate slug from name
 organizationSchema.pre('save', function(next) {
@@ -85,16 +95,6 @@ organizationSchema.methods.removeMember = async function(userId) {
     user: userId,
     organization: this._id,
   });
-};
-
-// Check if user is member
-organizationSchema.methods.isMember = async function(userId) {
-  const Membership = mongoose.model('Membership');
-  const membership = await Membership.findOne({
-    user: userId,
-    organization: this._id,
-  });
-  return !!membership;
 };
 
 module.exports = mongoose.model('Organization', organizationSchema);
