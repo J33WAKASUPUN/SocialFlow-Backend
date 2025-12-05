@@ -52,10 +52,15 @@ class QueueManager {
     try {
       const scheduledDate = new Date(scheduledFor);
       const now = new Date();
-      const delay = Math.max(0, scheduledDate.getTime() - now.getTime());
+      let delay = scheduledDate.getTime() - now.getTime();
 
-      // ✅ FIX: If delay is less than 10 seconds, publish immediately with high priority
-      const jobPriority = delay < 10000 ? 1 : (priority === 'high' ? 2 : 3);
+      // FIX: If delay is negative or very small, publish immediately
+      if (delay < 5000) {
+        delay = 0; // Immediate execution
+        logger.info('📤 Publishing immediately (no delay)', { postId, scheduleId });
+      }
+
+      const jobPriority = delay === 0 ? 1 : (priority === 'high' ? 2 : 3);
 
       const job = await this.publishQueue.add(
         {
@@ -65,7 +70,7 @@ class QueueManager {
         },
         {
           delay,
-          priority: jobPriority, // ✅ Lower number = higher priority
+          priority: jobPriority,
           attempts: 3,
           backoff: {
             type: 'exponential',
@@ -76,18 +81,18 @@ class QueueManager {
         }
       );
 
-      logger.info('📤 Publish job added to queue', {
+      logger.info('📋 Publish job added', {
         jobId: job.id,
         postId,
         scheduleId,
-        scheduledFor,
-        delay: `${Math.round(delay / 1000)}s`,
+        delay,
         priority: jobPriority,
+        willRunAt: delay === 0 ? 'immediately' : new Date(now.getTime() + delay).toISOString(),
       });
 
       return job;
     } catch (error) {
-      logger.error('❌ Failed to add publish job', { error: error.message });
+      logger.error('Failed to add publish job', { error: error.message, postId });
       throw error;
     }
   }

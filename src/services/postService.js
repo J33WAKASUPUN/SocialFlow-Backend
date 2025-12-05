@@ -49,25 +49,27 @@ class PostService {
 
     // Check create permission
     if (!membership.hasPermission('create_posts')) {
-      throw new Error('Permission denied: Cannot create posts');
+      throw new Error('Permission denied');
     }
 
     // Validate schedules have valid channels
     const validatedSchedules = [];
     for (const schedule of schedules || []) {
       const channel = await Channel.findById(schedule.channel || schedule.channelId);
-      if (!channel) {
-        throw new Error(`Channel not found: ${schedule.channel || schedule.channelId}`);
+      if (!channel || channel.brand.toString() !== brandId) {
+        throw new Error('Invalid channel');
       }
-      if (channel.brand.toString() !== brandId) {
-        throw new Error('Channel does not belong to this brand');
-      }
+
+      // FIX: Check if this is an immediate publish (scheduledFor is in the past or within 5 seconds)
+      const scheduledDate = new Date(schedule.scheduledFor);
+      const now = new Date();
+      const isImmediate = scheduledDate.getTime() - now.getTime() < 5000;
 
       validatedSchedules.push({
         channel: channel._id,
         provider: channel.provider,
         scheduledFor: schedule.scheduledFor,
-        status: 'pending',
+        status: isImmediate ? 'queued' : 'pending', // Mark as queued for immediate
       });
     }
 
@@ -83,11 +85,18 @@ class PostService {
       });
 
       mediaLibraryItems = mediaItems.map(m => m._id);
-      resolvedMediaUrls = [...resolvedMediaUrls, ...mediaItems.map(m => m.s3Url)];
+      resolvedMediaUrls = mediaItems.map(m => m.s3Url);
     }
 
     // Determine media type
     const mediaType = this.detectMediaType(resolvedMediaUrls);
+
+    // Determine initial status
+    let initialStatus = 'draft';
+    if (validatedSchedules.length > 0) {
+      const hasQueued = validatedSchedules.some(s => s.status === 'queued');
+      initialStatus = hasQueued ? 'publishing' : 'scheduled';
+    }
 
     // Create post
     const post = new Post({
@@ -100,20 +109,21 @@ class PostService {
       mediaType,
       mediaLibraryItems,
       schedules: validatedSchedules,
-      status: validatedSchedules.some(s => s.status === 'queued') ? 'publishing' : validatedSchedules.length > 0 ? 'scheduled' : 'draft',
+      status: initialStatus,
       settings: settings || {},
     });
+
+    await post.save();
 
     // If scheduled, add to queue
     for (const schedule of post.schedules) {
       if (schedule.scheduledFor) {
-        await queueManager.addPublishJob(
+        const job = await queueManager.addPublishJob(
           post._id,
           schedule._id,
           new Date(schedule.scheduledFor)
         );
-        schedule.status = 'queued';
-        post.status = 'publishing';
+        schedule.jobId = job.id;
       }
     }
 
@@ -124,6 +134,7 @@ class PostService {
       brandId,
       userId,
       schedules: post.schedules.length,
+      status: post.status,
     });
 
     // Return populated post
@@ -163,7 +174,7 @@ class PostService {
 
       // Fetch posts with populated data
       const posts = await Post.find(query)
-        .populate('createdBy', 'name email avatar')
+        .populate('createdBy', 'name email')
         .populate({
           path: 'schedules.channel',
           select: 'provider displayName avatar platformUsername',
@@ -273,7 +284,7 @@ class PostService {
     await post.save();
 
     return await Post.findById(post._id)
-      .populate('createdBy', 'name email avatar')
+      .populate('createdBy', 'name email')
       .populate('schedules.channel', 'provider displayName avatar')
       .populate('mediaLibraryItems', 's3Url originalName type');
   }

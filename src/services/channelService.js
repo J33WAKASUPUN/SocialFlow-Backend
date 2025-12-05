@@ -210,24 +210,42 @@ class ChannelService {
     // Check user access
     await this.checkBrandAccess(userId, channel.brand._id);
 
-    // Get provider instance
-    const provider = ProviderFactory.getProvider(channel.provider, channel);
+    try {
+      const ProviderFactory = require("../providers/ProviderFactory");
+      const provider = ProviderFactory.getProvider(channel.provider, channel);
+      
+      const isValid = await provider.testConnection();
+      
+      // Only update status, don't disconnect on failure
+      channel.lastHealthCheck = new Date();
+      
+      if (isValid) {
+        channel.connectionStatus = 'active';
+        channel.healthCheckError = null;
+      } else {
+        // DON'T change to disconnected immediately - just log the error
+        channel.healthCheckError = 'Connection test returned false';
+        logger.warn(`Channel ${channelId} test returned false but keeping active`);
+      }
+      
+      await channel.save();
 
-    // Test connection
-    const result = await provider.testConnection();
-
-    // Update channel status
-    channel.lastHealthCheck = new Date();
-    if (result.success) {
-      channel.connectionStatus = "active";
-      channel.healthCheckError = null;
-    } else {
-      channel.connectionStatus = "error";
-      channel.healthCheckError = result.error;
+      return { 
+        isValid, 
+        lastHealthCheck: channel.lastHealthCheck,
+        connectionStatus: channel.connectionStatus 
+      };
+    } catch (error) {
+      // Log error but DON'T disconnect the channel
+      channel.lastHealthCheck = new Date();
+      channel.healthCheckError = error.message;
+      // Keep status as 'active' - don't auto-disconnect
+      await channel.save();
+      
+      logger.error(`Channel test failed but keeping active: ${error.message}`);
+      
+      throw error;
     }
-    await channel.save();
-
-    return result;
   }
 
   /**
