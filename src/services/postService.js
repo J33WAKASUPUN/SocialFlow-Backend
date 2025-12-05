@@ -128,7 +128,7 @@ class PostService {
 
     // Return populated post
     return await Post.findById(post._id)
-      .populate('createdBy', 'name email avatar')
+      .populate('createdBy', 'name email')
       .populate('schedules.channel', 'provider displayName avatar')
       .populate('mediaLibraryItems', 's3Url originalName type');
   }
