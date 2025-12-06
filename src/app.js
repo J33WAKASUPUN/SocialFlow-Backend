@@ -24,28 +24,54 @@ function createApp() {
   const app = express();
   app.set('trust proxy', 1);
 
-  // ============================================
   // SECURITY MIDDLEWARE
-  // ============================================
   app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"], // For inline styles
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"], // Allow images from S3/Cloudinary
+        connectSrc: ["'self'", process.env.CLIENT_URL],
+        fontSrc: ["'self'", "https:", "data:"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'", "https:"],
+        frameSrc: ["'none'"],
+      },
+    },
+    hsts: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    noSniff: true,
+    xssFilter: true,
+    hidePoweredBy: true,
   }));
+  
   app.use(mongoSanitize());
 
-  // ============================================
-  // CORS CONFIGURATION - ✅ FIXED
-  // ============================================
+  // STRICTER CORS CONFIGURATION
   const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:8080',
     'http://localhost:3000',
     process.env.CLIENT_URL
-  ].filter(Boolean); // Remove undefined values
+  ].filter(Boolean);
 
   const corsOptions = {
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or Postman)
-      if (!origin) return callback(null, true);
+      // Reject requests with no origin in production
+      if (!origin) {
+        if (process.env.NODE_ENV === 'production') {
+          logger.warn('🚫 CORS blocked request with no origin header');
+          return callback(new Error('Not allowed by CORS - missing origin'));
+        }
+        // Allow in development (for Postman, curl, etc.)
+        return callback(null, true);
+      }
       
       if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
@@ -58,12 +84,10 @@ function createApp() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     exposedHeaders: ['Content-Range', 'X-Content-Range'],
-    maxAge: 600, // 10 minutes
+    maxAge: 600,
   };
 
   app.use(cors(corsOptions));
-
-  // Handle preflight requests for all routes
   app.options('*', cors(corsOptions));
 
   // ============================================

@@ -2,42 +2,47 @@ const express = require('express');
 const router = express.Router();
 const brandController = require('../controllers/brandController');
 const { requireAuth } = require('../middlewares/auth');
+const { validateObjectId, sanitizeQuery } = require('../middlewares/validateInput');
 
 router.use(requireAuth);
+router.use(sanitizeQuery); // Sanitize query params
 
-/**
- * @swagger
- * tags:
- *   name: Brands
- *   description: Brand management
- */
-
-// CREATE BRAND
+// CREATE BRAND (no ID validation)
 router.post('/', brandController.createBrand);
 
-// GET ALL USER BRANDS
+// GET ALL USER BRANDS (query sanitization applied)
 router.get('/', brandController.getUserBrands);
 
-// GET SINGLE BRAND (use :brandId instead of :id to avoid conflicts)
-router.get('/:brandId', brandController.getBrandById);
+// Validate :brandId parameter
+router.get('/:brandId', validateObjectId('brandId'), brandController.getBrandById);
 
-// UPDATE BRAND
-router.patch('/:brandId', brandController.updateBrand);
+// Validate :brandId parameter
+router.patch('/:brandId', validateObjectId('brandId'), brandController.updateBrand);
 
-// DELETE BRAND
-router.delete('/:brandId', brandController.deleteBrand);
+// Validate :brandId parameter
+router.delete('/:brandId', validateObjectId('brandId'), brandController.deleteBrand);
 
 // ========== TEAM MANAGEMENT ==========
-// GET BRAND MEMBERS
-router.get('/:brandId/members', brandController.getBrandMembers);
+// alidate :brandId parameter
+router.get('/:brandId/members', validateObjectId('brandId'), brandController.getBrandMembers);
 
-// INVITE MEMBER
-router.post('/:brandId/members', brandController.inviteMember);
+// Validate :brandId parameter
+router.post('/:brandId/members', validateObjectId('brandId'), brandController.inviteMember);
 
-// UPDATE MEMBER ROLE
-router.patch('/:brandId/members/:memberId', brandController.updateMemberRole);
+// Validate both :brandId and :memberId
+router.patch(
+  '/:brandId/members/:memberId',
+  validateObjectId('brandId'),
+  validateObjectId('memberId'),
+  brandController.updateMemberRole
+);
 
-// REMOVE MEMBER
-router.delete('/:brandId/members/:memberId', brandController.removeMember);
+// Validate both :brandId and :memberId
+router.delete(
+  '/:brandId/members/:memberId',
+  validateObjectId('brandId'),
+  validateObjectId('memberId'),
+  brandController.removeMember
+);
 
 module.exports = router;

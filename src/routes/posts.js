@@ -2,91 +2,39 @@ const express = require('express');
 const router = express.Router();
 const postController = require('../controllers/postController');
 const { requireAuth } = require('../middlewares/auth');
+const { validateObjectId, sanitizeQuery } = require('../middlewares/validateInput');
 const { uploadMedia } = require('../middlewares/upload');
 
 router.use(requireAuth);
+router.use(sanitizeQuery); // Sanitize all query params
 
-/**
- * @swagger
- * tags:
- *   name: Posts
- *   description: Post management and scheduling
- */
-
-/**
- * @swagger
- * /api/v1/posts:
- *   post:
- *     summary: Create a new post
- *     tags: [Posts]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - brandId
- *               - content
- *             properties:
- *               brandId:
- *                 type: string
- *               title:
- *                 type: string
- *               content:
- *                 type: string
- *               mediaUrls:
- *                 type: array
- *                 items:
- *                   type: string
- *               schedules:
- *                 type: array
- *                 items:
- *                   type: object
- *                   properties:
- *                     channelId:
- *                       type: string
- *                     scheduledFor:
- *                       type: string
- *                       format: date-time
- *     responses:
- *       201:
- *         description: Post created successfully
- */
+// CREATE POST (no ID validation needed)
 router.post('/', postController.createPost);
 
-/**
- * @swagger
- * /api/v1/posts:
- *   get:
- *     summary: Get brand posts
- *     tags: [Posts]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: brandId
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [draft, scheduled, published, failed]
- *     responses:
- *       200:
- *         description: List of posts
- */
+// GET POSTS (apply query sanitization)
 router.get('/', postController.getPosts);
 
+// CALENDAR (apply query sanitization)
 router.get('/calendar', postController.getCalendar);
-router.get('/:id', postController.getPostById);
-router.patch('/:id', postController.updatePost);
-router.delete('/:id', postController.deletePost);
-router.post('/:id/schedule', postController.schedulePost);
-router.delete('/:postId/schedules/:scheduleId', postController.cancelSchedule);
+
+// Validate :id parameter
+router.get('/:id', validateObjectId('id'), postController.getPostById);
+
+// Validate :id parameter
+router.patch('/:id', validateObjectId('id'), postController.updatePost);
+
+// Validate :id parameter
+router.delete('/:id', validateObjectId('id'), postController.deletePost);
+
+// Validate :id parameter
+router.post('/:id/schedule', validateObjectId('id'), postController.schedulePost);
+
+// Validate both :postId and :scheduleId
+router.delete(
+  '/:postId/schedules/:scheduleId',
+  validateObjectId('postId'),
+  validateObjectId('scheduleId'),
+  postController.cancelSchedule
+);
 
 module.exports = router;

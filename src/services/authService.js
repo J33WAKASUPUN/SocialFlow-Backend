@@ -115,24 +115,39 @@ async register(email, password, name) {
    */
   async requestPasswordReset(email) {
     const user = await User.findOne({ email: email.toLowerCase() });
-
+    
+    // Always return success to prevent email enumeration
     if (!user) {
-      return { success: true };
+      logger.warn('Password reset requested for non-existent email', { email });
+      return { success: true, message: 'If that email exists, a reset link has been sent' };
     }
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = Date.now() + 60 * 60 * 1000;
+    // Generate cryptographically secure token (32 bytes = 64 hex chars)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    
+    // Hash token before storing in database
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+
+    user.resetPasswordToken = hashedToken; // Store hashed version
+    user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
     await user.save();
 
-    // Send reset email (UPDATED)
-    await emailService.sendPasswordResetEmail(
-      user.email,
-      resetToken,
-      user.name
-    );
+    // Send ONLY the original token via email (never log it)
+    await emailService.sendPasswordResetEmail(user.email, resetToken, user.name);
 
-    return { success: true };
+    logger.info('Password reset email sent', { 
+      userId: user._id, 
+      email: user.email,
+      // DO NOT LOG THE TOKEN
+    });
+
+    return { 
+      success: true, 
+      message: 'If that email exists, a reset link has been sent' 
+    };
   }
 
   /**
@@ -313,16 +328,27 @@ async googleAuth(profile) {
   }
 
   /**
-   * Reset Password
+   * Reset Password - VERIFY HASHED TOKEN
    */
   async resetPassword(token, newPassword) {
+    // Hash the incoming token to compare with stored hash
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
+
     const user = await User.findOne({
-      resetPasswordToken: token,
+      resetPasswordToken: hashedToken,
       resetPasswordExpires: { $gt: Date.now() },
     });
 
     if (!user) {
-      throw new Error("Invalid or expired reset token");
+      throw new Error('Invalid or expired reset token');
+    }
+
+    // Validate new password strength
+    if (newPassword.length < 8) {
+      throw new Error('Password must be at least 8 characters');
     }
 
     user.password = newPassword;
@@ -330,7 +356,9 @@ async googleAuth(profile) {
     user.resetPasswordExpires = undefined;
     await user.save();
 
-    return { success: true };
+    logger.info('Password reset successful', { userId: user._id });
+
+    return { success: true, message: 'Password reset successful' };
   }
 
   /**

@@ -3,46 +3,51 @@ const router = express.Router();
 const organizationController = require('../controllers/organizationController');
 const brandController = require('../controllers/brandController');
 const { requireAuth } = require('../middlewares/auth');
+const { validateObjectId, sanitizeQuery } = require('../middlewares/validateInput');
 
 router.use(requireAuth);
+router.use(sanitizeQuery);
 
-/**
- * @swagger
- * tags:
- *   name: Organizations
- *   description: Organization management
- */
-
-// CREATE ORGANIZATION
+// CREATE ORGANIZATION (no ID validation)
 router.post('/', organizationController.createOrganization);
 
-// GET ALL USER ORGANIZATIONS
+// GET ALL USER ORGANIZATIONS (query sanitization applied)
 router.get('/', organizationController.getUserOrganizations);
 
-// UPDATE ORGANIZATION
-router.patch('/:id', organizationController.updateOrganization);
+// Validate :id parameter
+router.patch('/:id', validateObjectId('id'), organizationController.updateOrganization);
 
-// DELETE ORGANIZATION
-router.delete('/:id', organizationController.deleteOrganization);
+// Validate :id parameter
+router.delete('/:id', validateObjectId('id'), organizationController.deleteOrganization);
 
 // ========== BRANDS UNDER ORGANIZATION ==========
-// GET BRANDS FOR AN ORGANIZATION
-router.get('/:id/brands', brandController.getOrganizationBrands);
+// Validate :id parameter
+router.get('/:id/brands', validateObjectId('id'), brandController.getOrganizationBrands);
 
-// CREATE BRAND UNDER ORGANIZATION
-router.post('/:id/brands', brandController.createBrandUnderOrganization);
+// Validate :id parameter
+router.post('/:id/brands', validateObjectId('id'), brandController.createBrandUnderOrganization);
 
 // ========== MEMBERS MANAGEMENT ==========
-// GET ORGANIZATION MEMBERS
-router.get('/:id/members', organizationController.getMembers);
+// Validate :id parameter
+router.get('/:id/members', validateObjectId('id'), organizationController.getMembers);
 
-// INVITE MEMBER TO ORGANIZATION
-router.post('/:id/members', organizationController.inviteMember);
+// Validate :id parameter
+router.post('/:id/members', validateObjectId('id'), organizationController.inviteMember);
 
-// UPDATE MEMBER ROLE
-router.put('/:id/members/:userId', organizationController.updateMemberRole);
+// Validate both :id and :userId
+router.put(
+  '/:id/members/:userId',
+  validateObjectId('id'),
+  validateObjectId('userId'),
+  organizationController.updateMemberRole
+);
 
-// REMOVE MEMBER
-router.delete('/:id/members/:userId', organizationController.removeMember);
+// Validate both :id and :userId
+router.delete(
+  '/:id/members/:userId',
+  validateObjectId('id'),
+  validateObjectId('userId'),
+  organizationController.removeMember
+);
 
 module.exports = router;

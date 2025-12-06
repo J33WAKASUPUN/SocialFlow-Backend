@@ -2,127 +2,37 @@ const express = require('express');
 const router = express.Router();
 const mediaController = require('../controllers/mediaController');
 const { requireAuth } = require('../middlewares/auth');
+const { validateObjectId, sanitizeQuery } = require('../middlewares/validateInput');
 const { uploadMedia } = require('../middlewares/upload');
 
-// All routes require authentication
 router.use(requireAuth);
+router.use(sanitizeQuery); // ✅ ADD: Sanitize query params
 
-/**
- * @route   POST /api/v1/media/upload
- * @desc    Upload media files
- * @access  Private
- */
+// UPLOAD (no ID validation)
 router.post('/upload', uploadMedia, mediaController.uploadMedia);
 
-/**
- * @route   GET /api/v1/media
- * @desc    Get media library with filters
- * @access  Private
- */
+// GET LIBRARY (query sanitization applied)
 router.get('/', mediaController.getMediaLibrary);
 
-// ============================================
-// STATIC ROUTES MUST COME BEFORE DYNAMIC ROUTES (:id)
-// ============================================
-
-/**
- * @route   GET /api/v1/media/for-post
- * @desc    Get media formatted for post composer
- * @access  Private
- */
+// STATIC ROUTES (no ID validation)
 router.get('/for-post', mediaController.getMediaForPostComposer);
-
-/**
- * @route   GET /api/v1/media/folders
- * @desc    Get all folders for a brand
- * @access  Private
- */
 router.get('/folders', mediaController.getFolders);
-
-/**
- * @route   GET /api/v1/media/folders-metadata
- * @desc    Get folders with metadata
- * @access  Private
- * MUST BE BEFORE /:id ROUTE
- */
 router.get('/folders-metadata', mediaController.getFoldersMetadata);
-
-/**
- * @route   GET /api/v1/media/tags
- * @desc    Get popular tags
- * @access  Private
- */
 router.get('/tags', mediaController.getPopularTags);
-
-/**
- * @route   GET /api/v1/media/stats
- * @desc    Get storage statistics
- * @access  Private
- */
 router.get('/stats', mediaController.getStorageStats);
 
-// ============================================
-// DYNAMIC ROUTES COME AFTER STATIC ROUTES
-// ============================================
+// Validate :id parameter for media-specific routes
+router.get('/:id', validateObjectId('id'), mediaController.getMediaById);
+router.patch('/:id', validateObjectId('id'), mediaController.updateMedia);
+router.delete('/:id', validateObjectId('id'), mediaController.deleteMedia);
 
-/**
- * @route   GET /api/v1/media/:id
- * @desc    Get single media by ID
- * @access  Private
- */
-router.get('/:id', mediaController.getMediaById);
-
-/**
- * @route   PATCH /api/v1/media/:id
- * @desc    Update media metadata
- * @access  Private
- */
-router.patch('/:id', mediaController.updateMedia);
-
-/**
- * @route   DELETE /api/v1/media/:id
- * @desc    Delete media
- * @access  Private
- */
-router.delete('/:id', mediaController.deleteMedia);
-
-// ============================================
-// FOLDER MANAGEMENT ROUTES
-// ============================================
-
-/**
- * @route   POST /api/v1/media/folders
- * @desc    Create new folder
- * @access  Private
- */
-router.post('/folders', mediaController.createFolder);
-
-/**
- * @route   PATCH /api/v1/media/folders/:folderName
- * @desc    Rename folder
- * @access  Private
- */
-router.patch('/folders/:folderName', mediaController.renameFolder);
-
-/**
- * @route   DELETE /api/v1/media/folders/:folderName
- * @desc    Delete folder
- * @access  Private
- */
-router.delete('/folders/:folderName', mediaController.deleteFolder);
-
-/**
- * @route   POST /api/v1/media/move-to-folder
- * @desc    Move media to folder
- * @access  Private
- */
-router.post('/move-to-folder', mediaController.moveToFolder);
-
-/**
- * @route   POST /api/v1/media/bulk-delete
- * @desc    Bulk delete media
- * @access  Private
- */
+// BULK DELETE (validate array of IDs in controller)
 router.post('/bulk-delete', mediaController.bulkDeleteMedia);
+
+// FOLDER MANAGEMENT (folder names are strings, not ObjectIds)
+router.post('/folders', mediaController.createFolder);
+router.patch('/folders/:folderName', mediaController.renameFolder);
+router.delete('/folders/:folderName', mediaController.deleteFolder);
+router.post('/move-to-folder', mediaController.moveToFolder);
 
 module.exports = router;

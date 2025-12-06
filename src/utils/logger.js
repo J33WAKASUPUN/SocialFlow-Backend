@@ -8,18 +8,54 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
-/**
- * Custom log format
- */
+// Sensitive data redaction
+const sensitiveFields = [
+  'password',
+  'token',
+  'accessToken',
+  'refreshToken',
+  'secret',
+  'apiKey',
+  'authorization',
+  'cookie',
+  'sessionId',
+  '2fa',
+  'otp',
+  'code',
+  'resetPasswordToken',
+];
+
+const redactSensitiveData = winston.format((info) => {
+  const redact = (obj) => {
+    if (!obj || typeof obj !== 'object') return obj;
+    
+    Object.keys(obj).forEach(key => {
+      const lowerKey = key.toLowerCase();
+      
+      // Check if key contains sensitive field name
+      if (sensitiveFields.some(field => lowerKey.includes(field))) {
+        obj[key] = '[REDACTED]';
+      } else if (typeof obj[key] === 'object') {
+        redact(obj[key]); // Recursively redact nested objects
+      }
+    });
+    
+    return obj;
+  };
+
+  return redact(info);
+});
+
+// Custom log format
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
+  redactSensitiveData(),
   winston.format.splat(),
   winston.format.json(),
   winston.format.printf(({ timestamp, level, message, stack, ...metadata }) => {
     let log = `${timestamp} [${level.toUpperCase()}]: ${message}`;
     
-    // Add metadata if present
     if (Object.keys(metadata).length > 0) {
       log += ` ${JSON.stringify(metadata)}`;
     }
