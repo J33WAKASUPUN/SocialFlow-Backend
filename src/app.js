@@ -213,6 +213,33 @@ app.get("/health", async (req, res) => {
   }
 });
 
+// Worker health check endpoint
+app.get('/workers/health', async (req, res) => {
+  try {
+    const workerManager = require('./workers');
+    const queueManager = require('./queues/queueManager');
+    
+    const health = await workerManager.healthCheck();
+    const stats = await queueManager.getStats();
+    const failedJobs = await queueManager.getFailedJobs(3);
+
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      workers: health,
+      queue: {
+        stats,
+        recentFailures: failedJobs
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Readiness check (for Kubernetes/Azure)
 app.get("/ready", async (req, res) => {
   try {

@@ -21,7 +21,6 @@ class RedisClient {
     const port = parseInt(process.env.REDIS_PORT || 6379, 10);
     const password = process.env.REDIS_PASSWORD;
 
-    // Azure Redis uses port 6380 with TLS
     const isTls = port === 6380 || process.env.NODE_ENV === 'production';
 
     logger.info(`Creating Redis ${name} client:`, {
@@ -39,42 +38,31 @@ class RedisClient {
         port: port,
         tls: isTls,
         rejectUnauthorized: false, 
-        
-        // -----------------------------------------------------------
-        // 🔴 CRITICAL FIX FOR AZURE + RENDER
-        // -----------------------------------------------------------
-        // Azure/Render load balancers kill idle connections after ~60s.
-        // This forces node-redis to send a "PING" every 20s to stay alive.
-        pingInterval: 20000, 
-        
-        // Lower TCP keepalive to ensure the socket stays active at OS level
-        keepAlive: 10000, 
-        // -----------------------------------------------------------
+        // ✅ INCREASE PING FREQUENCY TO PREVENT IDLE DISCONNECTS
+        pingInterval: 10000, // Ping every 10 seconds (was 20s)
+        keepAlive: 5000,     // TCP keep-alive every 5 seconds (was 10s)
         reconnectStrategy: (retries) => {
-          if (retries > 20) { // Increased from 5 to 10
+          if (retries > 20) {
             logger.error(`Redis ${name} max retries reached`);
             return new Error('Max retries reached');
           }
-          const delay = Math.min(retries * 100, 3000); // Increased max delay
+          const delay = Math.min(retries * 100, 3000);
           logger.warn(`Redis ${name} reconnecting... attempt ${retries}, delay: ${delay}ms`);
           return delay;
         },
         connectTimeout: 20000,
-        keepAlive: 30000, // Keep connection alive
-        noDelay: true, // Disable Nagle's algorithm for lower latency
-        tls: isTls,
-        rejectUnauthorized: false, // Required for Azure Redis
+        noDelay: true,
       },
-      // Add these new options for better connection handling
       commandsQueueMaxLength: 1000,
       enableOfflineQueue: true,
       enableReadyCheck: true,
       maxRetriesPerRequest: 3,
       retryStrategy: (times) => {
         if (times > 10) {
-          return null; // Stop retrying
+          return null;
         }
-        return Math.min(times * 100, 3000);
+        const delay = Math.min(times * 200, 5000);
+        return delay;
       },
     };
 
@@ -87,12 +75,9 @@ class RedisClient {
 
     // Improved error handling - suppress ECONNRESET spam
     client.on('error', (err) => {
-      // Only log ECONNRESET errors once per minute to avoid spam
-      if (err.code === 'ECONNRESET') {
-        if (!this.lastEconnresetLog || Date.now() - this.lastEconnresetLog > 60000) {
-          logger.error(`Queue error: ${err.message}`);
-          this.lastEconnresetLog = Date.now();
-        }
+      // Don't log reconnection errors (they're expected with Azure Redis)
+      if (err.code === 'ECONNRESET' || err.code === 'EPIPE') {
+        logger.debug(`Redis ${name} connection reset (normal for Azure)`);
       } else {
         logger.error(`❌ Redis ${name} error:`, {
           message: err.message,
