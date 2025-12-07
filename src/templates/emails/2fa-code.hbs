@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center; }
+        .header h1 { color: #ffffff; font-size: 24px; margin: 0; }
+        .content { padding: 40px 30px; text-align: center; }
+        .code-box { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: #ffffff; 
+            font-size: 36px; 
+            font-weight: bold; 
+            letter-spacing: 8px; 
+            padding: 20px 40px; 
+            border-radius: 12px; 
+            margin: 30px 0;
+            display: inline-block;
+        }
+        .warning { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; text-align: left; border-radius: 4px; }
+        .footer { background-color: #f8f9fa; padding: 30px; text-align: center; color: #6c757d; font-size: 14px; }
+        .security-tip { background-color: #e7f3ff; border-left: 4px solid #0084ff; padding: 15px; margin: 20px 0; text-align: left; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Verification Code</h1>
+        </div>
+        <div class="content">
+            <h2 style="color: #667eea; margin-bottom: 20px;">Hi {{userName}},</h2>
+            <p>Your verification code for {{appName}} is:</p>
+            
+            <div class="code-box">{{code}}</div>
+            
+            <div class="warning">
+                <strong>⏰ This code expires in 10 minutes</strong>
+                <p style="margin-top: 8px; font-size: 14px;">Do not share this code with anyone. Our team will never ask for your verification code.</p>
+            </div>
+
+            <div class="security-tip">
+                <strong>🛡️ Security Tip</strong>
+                <p style="margin-top: 8px; font-size: 14px;">If you didn't request this code, please secure your account immediately by changing your password.</p>
+            </div>
+
+            <p style="margin-top: 30px; color: #6c757d; font-size: 14px;">
+                This verification was requested from:<br>
+                <strong>IP:</strong> {{ipAddress}}<br>
+                <strong>Time:</strong> {{requestTime}}
+            </p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2024 {{appName}}. All rights reserved.</p>
+            <p style="margin-top: 10px;">
+                Need help? Contact us at <a href="mailto:{{supportEmail}}" style="color: #667eea;">{{supportEmail}}</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
