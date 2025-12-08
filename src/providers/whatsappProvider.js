@@ -41,8 +41,8 @@ class WhatsAppProvider extends BaseProvider {
         platformUserId: phoneNumberId,
         platformUsername: response.data.display_phone_number,
         displayName: response.data.verified_name,
-        accessToken,
-        refreshToken: null, // WhatsApp uses long-lived tokens
+        accessToken, // ✅ Return PLAIN TEXT - Channel model will encrypt
+        refreshToken: null,
         tokenExpiresAt: null,
         providerData: {
           businessAccountId,
