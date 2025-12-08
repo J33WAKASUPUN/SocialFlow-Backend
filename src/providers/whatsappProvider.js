@@ -288,6 +288,135 @@ class WhatsAppProvider extends BaseProvider {
       note: 'Analytics available in Meta Business Suite',
     };
   }
+
+  /**
+   * ✅ NEW: Send media message
+   */
+  async sendMediaMessage(recipientPhone, mediaType, mediaUrl, caption = '') {
+    try {
+      const config = this.getConfig();
+      const accessToken = this.getAccessToken();
+      const phoneNumberId = this.channel.providerData.phoneNumberId;
+
+      const payload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: recipientPhone,
+        type: mediaType, // 'image', 'video', 'document', 'audio'
+        [mediaType]: {
+          link: mediaUrl,
+          ...(caption && mediaType !== 'audio' && { caption }),
+        },
+      };
+
+      const response = await axios.post(
+        `${config.apiUrl}/${phoneNumberId}/messages`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      logger.info('[WHATSAPP] Media message sent', {
+        recipient: recipientPhone,
+        type: mediaType,
+        messageId: response.data.messages[0].id,
+      });
+
+      return {
+        success: true,
+        messageId: response.data.messages[0].id,
+      };
+    } catch (error) {
+      logger.error('[WHATSAPP] Media send failed', {
+        recipient: recipientPhone,
+        error: error.response?.data,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ NEW: Send text message
+   */
+  async sendTextMessage(recipientPhone, text, previewUrl = false) {
+    try {
+      const config = this.getConfig();
+      const accessToken = this.getAccessToken();
+      const phoneNumberId = this.channel.providerData.phoneNumberId;
+
+      const response = await axios.post(
+        `${config.apiUrl}/${phoneNumberId}/messages`,
+        {
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: recipientPhone,
+          type: 'text',
+          text: {
+            preview_url: previewUrl,
+            body: text,
+          },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      logger.info('[WHATSAPP] Text message sent', {
+        recipient: recipientPhone,
+        messageId: response.data.messages[0].id,
+      });
+
+      return {
+        success: true,
+        messageId: response.data.messages[0].id,
+      };
+    } catch (error) {
+      logger.error('[WHATSAPP] Text send failed', {
+        recipient: recipientPhone,
+        error: error.response?.data,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ NEW: Mark message as read
+   */
+  async markMessageAsRead(messageId) {
+    try {
+      const config = this.getConfig();
+      const accessToken = this.getAccessToken();
+      const phoneNumberId = this.channel.providerData.phoneNumberId;
+
+      await axios.post(
+        `${config.apiUrl}/${phoneNumberId}/messages`,
+        {
+          messaging_product: 'whatsapp',
+          status: 'read',
+          message_id: messageId,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      logger.info('[WHATSAPP] Message marked as read', { messageId });
+      return true;
+    } catch (error) {
+      logger.error('[WHATSAPP] Mark as read failed', { messageId, error: error.response?.data });
+      return false;
+    }
+  }
 }
 
 module.exports = WhatsAppProvider;

@@ -521,6 +521,169 @@ class WhatsAppController {
       next(error);
     }
   }
+
+  /**
+   * ✅ NEW: POST /api/v1/whatsapp/send-text
+   * Send text message
+   */
+  async sendTextMessage(req, res, next) {
+    try {
+      const { channelId, recipientIds, text, previewUrl = false } = req.body;
+
+      if (!channelId || !recipientIds || !text) {
+        return res.status(400).json({
+          success: false,
+          message: 'Missing required fields',
+        });
+      }
+
+      const channel = await Channel.findById(channelId);
+      if (!channel) {
+        return res.status(404).json({
+          success: false,
+          message: 'Channel not found',
+        });
+      }
+
+      // Check access
+      const membership = await Membership.findOne({
+        user: req.user._id,
+        brand: channel.brand,
+      });
+
+      if (!membership || !membership.permissions.includes('publish_posts')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Permission denied',
+        });
+      }
+
+      const recipients = await WhatsAppContact.find({
+        _id: { $in: recipientIds },
+        brand: channel.brand,
+      });
+
+      if (recipients.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'No valid recipients found',
+        });
+      }
+
+      const provider = ProviderFactory.getProvider('whatsapp', channel);
+      const results = [];
+
+      for (const recipient of recipients) {
+        try {
+          const result = await provider.sendTextMessage(recipient.phone, text, previewUrl);
+          results.push({ recipient: recipient.phone, ...result });
+          
+          // Rate limiting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          results.push({
+            recipient: recipient.phone,
+            success: false,
+            error: error.message,
+          });
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length;
+
+      res.json({
+        success: true,
+        message: `Sent to ${successCount}/${recipients.length} recipients`,
+        data: { results },
+      });
+    } catch (error) {
+      logger.error('[WHATSAPP] Text send failed', { error: error.message });
+      next(error);
+    }
+  }
+
+  /**
+   * ✅ NEW: POST /api/v1/whatsapp/send-media
+   * Send media message
+   */
+  async sendMediaMessage(req, res, next) {
+    try {
+      const { channelId, recipientIds, mediaType, mediaUrl, caption } = req.body;
+
+      if (!channelId || !recipientIds || !mediaType || !mediaUrl) {
+        return res.status(400).json({
+          success: false,
+          message: 'Missing required fields',
+        });
+      }
+
+      const channel = await Channel.findById(channelId);
+      if (!channel) {
+        return res.status(404).json({
+          success: false,
+          message: 'Channel not found',
+        });
+      }
+
+      const membership = await Membership.findOne({
+        user: req.user._id,
+        brand: channel.brand,
+      });
+
+      if (!membership || !membership.permissions.includes('publish_posts')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Permission denied',
+        });
+      }
+
+      const recipients = await WhatsAppContact.find({
+        _id: { $in: recipientIds },
+        brand: channel.brand,
+      });
+
+      if (recipients.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'No valid recipients found',
+        });
+      }
+
+      const provider = ProviderFactory.getProvider('whatsapp', channel);
+      const results = [];
+
+      for (const recipient of recipients) {
+        try {
+          const result = await provider.sendMediaMessage(
+            recipient.phone,
+            mediaType,
+            mediaUrl,
+            caption
+          );
+          results.push({ recipient: recipient.phone, ...result });
+          
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          results.push({
+            recipient: recipient.phone,
+            success: false,
+            error: error.message,
+          });
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length;
+
+      res.json({
+        success: true,
+        message: `Sent to ${successCount}/${recipients.length} recipients`,
+        data: { results },
+      });
+    } catch (error) {
+      logger.error('[WHATSAPP] Media send failed', { error: error.message });
+      next(error);
+    }
+  }
 }
 
 module.exports = new WhatsAppController();

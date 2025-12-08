@@ -38,6 +38,8 @@ router.delete('/contacts/:id', validateObjectId('id'), whatsappController.delete
 
 // MESSAGING
 router.post('/send-template', whatsappController.sendTemplateMessage);
+router.post('/send-text', whatsappController.sendTextMessage);
+router.post('/send-media', whatsappController.sendMediaMessage);
 
 // MESSAGE HISTORY
 router.get('/messages', async (req, res, next) => {
@@ -56,6 +58,9 @@ router.get('/messages', async (req, res, next) => {
     const query = {};
     if (brandId) query.brand = brandId;
     if (phoneNumberId) query.phoneNumberId = phoneNumberId;
+    if (type) {
+        query.type = type; 
+    }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 

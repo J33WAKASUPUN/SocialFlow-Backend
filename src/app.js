@@ -26,6 +26,13 @@ function createApp() {
   const app = express();
   app.set('trust proxy', 1);
 
+  app.set('query parser', (str) => {
+  return require('qs').parse(str, {
+    allowDots: true,
+    depth: 5,
+  });
+});
+
   // SECURITY MIDDLEWARE
   app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },

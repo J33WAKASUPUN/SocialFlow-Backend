@@ -39,7 +39,7 @@ const whatsappMessageSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['text', 'image', 'video', 'audio', 'document', 'template', 'interactive'],
+    enum: ['text', 'image', 'video', 'audio', 'document', 'template', 'interactive', 'call'], // ✅ ADD 'call'
     required: true,
   },
   status: {
@@ -79,6 +79,16 @@ const whatsappMessageSchema = new mongoose.Schema({
       language: String,
       components: mongoose.Schema.Types.Mixed,
     },
+    // ✅ ADD: Call metadata
+    call: {
+      callId: String,
+      duration: Number, // seconds
+      callStatus: {
+        type: String,
+        enum: ['missed', 'rejected', 'accepted', 'no_answer'],
+      },
+      videoCall: Boolean,
+    },
   },
   timestamp: {
     type: Date,
@@ -109,5 +119,6 @@ whatsappMessageSchema.index({ phoneNumberId: 1, timestamp: -1 });
 whatsappMessageSchema.index({ from: 1, timestamp: -1 });
 whatsappMessageSchema.index({ brand: 1, timestamp: -1 });
 whatsappMessageSchema.index({ direction: 1, status: 1, timestamp: -1 });
+whatsappMessageSchema.index({ type: 1, 'content.call.callStatus': 1 }); // ✅ ADD: Index for call queries
 
 module.exports = mongoose.model('WhatsAppMessage', whatsappMessageSchema);
