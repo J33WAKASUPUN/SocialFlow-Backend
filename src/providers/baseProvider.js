@@ -67,27 +67,27 @@ class BaseProvider {
     throw new Error('getPostAnalytics() must be implemented');
   }
 
-  /**
-   * Get decrypted access token
-   */
-  getAccessToken() {
-    if (!this.channel || !this.channel.accessToken) {
-      throw new Error('No access token available');
-    }
-    
-    return encryptionService.decrypt(this.channel.accessToken);
+/**
+ * Get decrypted access token
+ */
+getAccessToken() {
+  if (!this.channel || !this.channel.accessToken) {
+    throw new Error('No access token available');
   }
+  
+  return this.channel.accessToken;
+}
 
-  /**
-   * Get decrypted refresh token
-   */
-  getRefreshToken() {
-    if (!this.channel || !this.channel.refreshToken) {
-      return null;
-    }
-    
-    return encryptionService.decrypt(this.channel.refreshToken);
+/**
+ * Get decrypted refresh token
+ */
+getRefreshToken() {
+  if (!this.channel || !this.channel.refreshToken) {
+    return null;
   }
+  
+  return this.channel.refreshToken;
+}
 
   /**
    * Check if token is expired

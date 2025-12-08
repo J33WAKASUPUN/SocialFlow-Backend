@@ -37,16 +37,15 @@ const channelSchema = new mongoose.Schema({
     type: String,
     required: true,
     set: (token) => {
-      // Encrypt before saving
+      if (!token) return null;
       try {
         return encryptionService.encrypt(token);
       } catch (error) {
         console.error('Token encryption failed:', error);
-        return token; // Fallback (should be handled better)
+        return token;
       }
     },
     get: (encryptedToken) => {
-      // Decrypt when reading
       if (!encryptedToken) return null;
       try {
         return encryptionService.decrypt(encryptedToken);
@@ -111,9 +110,8 @@ const channelSchema = new mongoose.Schema({
   },
 }, {
   timestamps: true,
-  // Enable getters for encrypted fields
   toJSON: { getters: true },
-  toObject: { getters: true }
+  toObject: { getters: true },
 });
 
 // Compound index for uniqueness
