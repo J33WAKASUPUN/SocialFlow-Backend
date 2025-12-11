@@ -110,45 +110,45 @@ async register(email, password, name) {
     return { success: true };
   }
 
-  /**
-   * Request Password Reset
-   */
-  async requestPasswordReset(email) {
-    const user = await User.findOne({ email: email.toLowerCase() });
-    
-    // Always return success to prevent email enumeration
-    if (!user) {
-      logger.warn('Password reset requested for non-existent email', { email });
-      return { success: true, message: 'If that email exists, a reset link has been sent' };
-    }
-
-    // Generate cryptographically secure token (32 bytes = 64 hex chars)
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    
-    // Hash token before storing in database
-    const hashedToken = crypto
-      .createHash('sha256')
-      .update(resetToken)
-      .digest('hex');
-
-    user.resetPasswordToken = hashedToken; // Store hashed version
-    user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
-    await user.save();
-
-    // Send ONLY the original token via email (never log it)
-    await emailService.sendPasswordResetEmail(user.email, resetToken, user.name);
-
-    logger.info('Password reset email sent', { 
-      userId: user._id, 
-      email: user.email,
-      // DO NOT LOG THE TOKEN
-    });
-
-    return { 
-      success: true, 
-      message: 'If that email exists, a reset link has been sent' 
-    };
+/**
+ * Request Password Reset
+ */
+async requestPasswordReset(email) {
+  const user = await User.findOne({ email: email.toLowerCase() });
+  
+  // Always return success to prevent email enumeration
+  if (!user) {
+    logger.warn('Password reset requested for non-existent email', { email });
+    return { success: true, message: 'If that email exists, a reset link has been sent' };
   }
+
+  // Generate cryptographically secure token (32 bytes = 64 hex chars)
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  
+  // Hash token before storing in database
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  user.resetPasswordToken = hashedToken; // Store HASHED version
+  user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
+  await user.save();
+
+  // Send ONLY the original token via email (never log it)
+  await emailService.sendPasswordResetEmail(user.email, resetToken, user.name);
+
+  logger.info('Password reset email sent', { 
+    userId: user._id, 
+    email: user.email,
+    // DO NOT LOG THE TOKEN
+  });
+
+  return { 
+    success: true, 
+    message: 'If that email exists, a reset link has been sent' 
+  };
+}
 
   /**
    * Login User
@@ -327,39 +327,39 @@ async googleAuth(profile) {
     return { success: true };
   }
 
-  /**
-   * Reset Password - VERIFY HASHED TOKEN
-   */
-  async resetPassword(token, newPassword) {
-    // Hash the incoming token to compare with stored hash
-    const hashedToken = crypto
-      .createHash('sha256')
-      .update(token)
-      .digest('hex');
+/**
+ * Reset Password - VERIFY HASHED TOKEN
+ */
+async resetPassword(token, newPassword) {
+  // HASH the incoming token to match what's stored in DB
+  const hashedToken = crypto
+    .createHash('sha256')
+    .update(token)
+    .digest('hex');
 
-    const user = await User.findOne({
-      resetPasswordToken: hashedToken,
-      resetPasswordExpires: { $gt: Date.now() },
-    });
+  const user = await User.findOne({
+    resetPasswordToken: hashedToken, // Compare hashed tokens
+    resetPasswordExpires: { $gt: Date.now() },
+  });
 
-    if (!user) {
-      throw new Error('Invalid or expired reset token');
-    }
-
-    // Validate new password strength
-    if (newPassword.length < 8) {
-      throw new Error('Password must be at least 8 characters');
-    }
-
-    user.password = newPassword;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
-    await user.save();
-
-    logger.info('Password reset successful', { userId: user._id });
-
-    return { success: true, message: 'Password reset successful' };
+  if (!user) {
+    throw new Error('Invalid or expired reset token');
   }
+
+  // Validate new password strength
+  if (newPassword.length < 8) {
+    throw new Error('Password must be at least 8 characters');
+  }
+
+  user.password = newPassword;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpires = undefined;
+  await user.save();
+
+  logger.info('Password reset successful', { userId: user._id });
+
+  return { success: true, message: 'Password reset successful' };
+}
 
   /**
    * Change Password
