@@ -264,24 +264,32 @@ async googleAuth(profile) {
   return { user, tokens };
 }
 
-  /**
-   * Request Password Reset
+/**
+   * Request Password Reset (CORRECTED)
    */
   async requestPasswordReset(email) {
     const user = await User.findOne({ email: email.toLowerCase() });
 
+    // Always return success to prevent email enumeration
     if (!user) {
-      // Don't reveal if email exists
       return { success: true };
     }
 
-    // Generate reset token
+    // 1. Generate the RAW token (to send to user)
     const resetToken = crypto.randomBytes(32).toString("hex");
-    user.resetPasswordToken = resetToken;
+
+    // 2. Hash the token (to save to database)
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    // 3. Save the HASHED token to the database
+    user.resetPasswordToken = hashedToken; 
     user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
     await user.save();
 
-    // Send reset email
+    // 4. Send the RAW token via email
     await emailService.sendPasswordResetEmail(user.email, resetToken);
 
     return { success: true };
