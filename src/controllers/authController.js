@@ -308,37 +308,52 @@ class AuthController {
     }
   }
 
-  /**
-   * POST /api/v1/auth/reset-password
-   */
-  async resetPassword(req, res, next) {
-    try {
-      const { token, password } = req.body;
+/**
+ * POST /api/v1/auth/reset-password
+ */
+async resetPassword(req, res, next) {
+  try {
+    const { token, password } = req.body;
 
-      if (!token || !password) {
-        return res.status(400).json({
-          success: false,
-          message: "Token and new password are required",
-        });
-      }
-
-      if (password.length < 8) {
-        return res.status(400).json({
-          success: false,
-          message: "Password must be at least 8 characters",
-        });
-      }
-
-      await authService.resetPassword(token, password);
-
-      res.json({
-        success: true,
-        message: "Password reset successful",
+    // Manual validation here
+    if (!token || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Token and new password are required",
       });
-    } catch (error) {
-      next(error);
     }
+
+    // Password strength validation
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 8 characters",
+      });
+    }
+
+    // Check password complexity
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    
+    if (!hasUpperCase || !hasLowerCase || !hasNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must contain uppercase, lowercase, and numbers",
+      });
+    }
+
+    // Now call the service
+    await authService.resetPassword(token, password);
+
+    res.json({
+      success: true,
+      message: "Password reset successful",
+    });
+  } catch (error) {
+    next(error);
   }
+}
 
   /**
    * GET /api/v1/auth/test-email (For testing email service)

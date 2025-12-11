@@ -39,10 +39,9 @@ router.post(
   authController.forgotPassword
 );
 
-// Validate password for password reset
+// The validation should happen in the controller after we verify the token exists
 router.post(
   '/reset-password',
-  validatePassword,
   authController.resetPassword
 );
 
