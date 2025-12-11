@@ -110,46 +110,6 @@ async register(email, password, name) {
     return { success: true };
   }
 
-/**
- * Request Password Reset
- */
-async requestPasswordReset(email) {
-  const user = await User.findOne({ email: email.toLowerCase() });
-  
-  // Always return success to prevent email enumeration
-  if (!user) {
-    logger.warn('Password reset requested for non-existent email', { email });
-    return { success: true, message: 'If that email exists, a reset link has been sent' };
-  }
-
-  // Generate cryptographically secure token (32 bytes = 64 hex chars)
-  const resetToken = crypto.randomBytes(32).toString('hex');
-  
-  // Hash token before storing in database
-  const hashedToken = crypto
-    .createHash('sha256')
-    .update(resetToken)
-    .digest('hex');
-
-  user.resetPasswordToken = hashedToken; // Store HASHED version
-  user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
-  await user.save();
-
-  // Send ONLY the original token via email (never log it)
-  await emailService.sendPasswordResetEmail(user.email, resetToken, user.name);
-
-  logger.info('Password reset email sent', { 
-    userId: user._id, 
-    email: user.email,
-    // DO NOT LOG THE TOKEN
-  });
-
-  return { 
-    success: true, 
-    message: 'If that email exists, a reset link has been sent' 
-  };
-}
-
   /**
    * Login User
    */
