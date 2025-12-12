@@ -3,7 +3,7 @@ const { generateTokenPair } = require("../utils/jwt");
 const crypto = require("crypto");
 const emailService = require("./emailService");
 const logger = require('../utils/logger');
-const { generateDeviceFingerprint, getDeviceName, getLocationFromIP } = require('../utils/deviceFingerprint'); // ✅ NEW
+const { generateDeviceFingerprint, getDeviceName, getLocationFromIP } = require('../utils/deviceFingerprint');
 
 class AuthService {
   /**
@@ -246,75 +246,123 @@ async register(email, password, name) {
     return { user, tokens };
   }
 
-/**
- * Google OAuth Login/Register
- */
-async googleAuth(profile) {
-  const { id: googleId, emails, displayName, photos } = profile;
-  const email = emails[0].value;
-  const googleAvatar = photos && photos[0] ? photos[0].value : null;
+  /**
+   * Google OAuth Login/Register - WITH DEVICE FINGERPRINTING
+   */
+  async googleAuth(profile, req) {
+    const { id: googleId, emails, displayName, photos } = profile;
+    const email = emails[0].value;
+    const googleAvatar = photos && photos[0] ? photos[0].value : null;
 
-  // Check if user exists with this Google ID
-  let user = await User.findOne({ googleId });
+    // Check if user exists with this Google ID
+    let user = await User.findOne({ googleId });
 
-  if (!user) {
-    // Check if user exists with this email
-    user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      // Check if user exists with this email
+      user = await User.findOne({ email: email.toLowerCase() });
 
-    if (user) {
-      // Link Google account to existing user
-      user.googleId = googleId;
-      user.googleEmail = email;
-      user.googleAvatar = googleAvatar;
-      user.emailVerified = true;
-      user.provider = 'google';
-      await user.save();
+      if (user) {
+        // Link Google account to existing user
+        user.googleId = googleId;
+        user.googleEmail = email;
+        user.googleAvatar = googleAvatar;
+        user.emailVerified = true;
+        user.provider = 'google';
+        await user.save();
+      } else {
+        // Create new user
+        user = await User.create({
+          email: email.toLowerCase(),
+          name: displayName,
+          googleId,
+          googleEmail: email,
+          googleAvatar,
+          emailVerified: true,
+          status: "active",
+          provider: 'google',
+        });
+      }
     } else {
-      // Create new user
-      user = await User.create({
-        email: email.toLowerCase(),
-        name: displayName,
-        googleId,
-        googleEmail: email,
-        googleAvatar,
-        emailVerified: true,
-        status: "active",
-        provider: 'google',
-      });
+      // Update last login
+      user.lastLogin = new Date();
+      user.googleAvatar = googleAvatar;
+      await user.save();
     }
-  } else {
-    // Update last login
-    user.lastLogin = new Date();
-    user.googleAvatar = googleAvatar; // Update avatar if changed
-    await user.save();
-  }
 
-  // CHECK IF USER HAS ANY ORGANIZATIONS
-  const Membership = require('../models/Membership');
-  const existingMemberships = await Membership.countDocuments({ user: user._id });
+    // Generate device fingerprint
+    const deviceId = generateDeviceFingerprint(req);
+    const deviceName = getDeviceName(req.headers['user-agent']);
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    const location = getLocationFromIP(ipAddress);
 
-  // IF NO ORGANIZATIONS, CREATE DEFAULT ONE
-  if (existingMemberships === 0) {
-    const organizationService = require('./organizationService');
-    
-    try {
-      await organizationService.createOrganization(user._id, {
-        name: `${displayName}'s Workspace`,
-        description: 'Your default workspace',
+    // Check if 2FA is required (even for Google OAuth users)
+    const requires2FA = user.twoFactorAuth?.enabled && 
+                        user.requires2FAVerification(deviceId, ipAddress);
+
+    if (requires2FA) {
+      // Return partial response - need 2FA verification
+      logger.info(`🔐 2FA required for Google OAuth user ${user.email}`, {
+        reason: user.isDeviceTrusted(deviceId) ? 'inactivity' : 'new_device',
+        deviceName,
       });
       
-      logger.info(`✅ Auto-created default organization for user: ${user.email}`);
-    } catch (error) {
-      logger.error('❌ Failed to create default organization:', error);
-      // Don't throw error - user can create org manually later
+      return {
+        user: {
+          _id: user._id,
+          email: user.email,
+          name: user.name,
+        },
+        tokens: null,
+        requires2FA: true,
+        twoFactorMethod: user.twoFactorAuth.method,
+        deviceId,
+        deviceName,
+      };
     }
+
+    // Mark device as trusted
+    user.addTrustedDevice({
+      deviceId,
+      deviceName,
+      fingerprint: deviceId,
+      ipAddress,
+      userAgent: req.headers['user-agent'],
+      location,
+    });
+
+    user.lastActivityAt = new Date();
+    await user.save();
+
+    // CHECK IF USER HAS ANY ORGANIZATIONS
+    const Membership = require('../models/Membership');
+    const existingMemberships = await Membership.countDocuments({ user: user._id });
+
+    // IF NO ORGANIZATIONS, CREATE DEFAULT ONE
+    if (existingMemberships === 0) {
+      const organizationService = require('./organizationService');
+      
+      try {
+        await organizationService.createOrganization(user._id, {
+          name: `${displayName}'s Workspace`,
+          description: 'Your default workspace',
+        });
+        
+        logger.info(`✅ Auto-created default organization for user: ${user.email}`);
+      } catch (error) {
+        logger.error('❌ Failed to create default organization:', error);
+      }
+    }
+
+    // Generate tokens
+    const tokens = await generateTokenPair(user._id);
+
+    logger.info(`✅ Google OAuth login successful for ${user.email}`, {
+      deviceName,
+      trusted: true,
+    });
+
+    return { user, tokens, requires2FA: false };
   }
-
-  // Generate tokens
-  const tokens = await generateTokenPair(user._id);
-
-  return { user, tokens };
-}
 
 /**
    * Request Password Reset (CORRECTED)

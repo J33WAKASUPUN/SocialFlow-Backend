@@ -97,9 +97,33 @@ router.get('/google', passport.authenticate('google', {
 
 router.get('/google/callback', 
   passport.authenticate('google', { session: false, failureRedirect: `${process.env.CLIENT_URL}/login?error=auth_failed` }),
-  (req, res) => {
-    const { user, tokens } = req.user;
-    res.redirect(`${process.env.CLIENT_URL}/google/callback?token=${tokens.accessToken}&refresh=${tokens.refreshToken}`);
+  async (req, res) => {
+    try {
+      const authService = require('../services/authService');
+      
+      // Call authService with req object for device fingerprinting
+      const result = await authService.googleAuth(req.user, req);
+      
+      // Check if 2FA is required
+      if (result.requires2FA) {
+        // Store temporary data in session/cookie for 2FA flow
+        // For now, redirect to frontend with special flag
+        return res.redirect(
+          `${process.env.CLIENT_URL}/2fa-verify?` +
+          `userId=${result.user._id}&` +
+          `method=${result.twoFactorMethod}&` +
+          `deviceId=${result.deviceId}&` +
+          `deviceName=${encodeURIComponent(result.deviceName)}`
+        );
+      }
+
+      // Normal login - redirect with tokens
+      const { user, tokens } = result;
+      res.redirect(`${process.env.CLIENT_URL}/google/callback?token=${tokens.accessToken}&refresh=${tokens.refreshToken}`);
+    } catch (error) {
+      logger.error('Google OAuth callback error:', error);
+      res.redirect(`${process.env.CLIENT_URL}/login?error=auth_failed`);
+    }
   }
 );
 

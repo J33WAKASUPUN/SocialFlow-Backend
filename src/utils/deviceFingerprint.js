@@ -39,39 +39,65 @@ function getDeviceName(userAgent) {
   
   // Detect OS
   if (userAgent.includes('Windows NT 10.0')) os = 'Windows 10';
+  else if (userAgent.includes('Windows NT 6.3')) os = 'Windows 8.1';
+  else if (userAgent.includes('Windows NT 6.2')) os = 'Windows 8';
+  else if (userAgent.includes('Windows NT 6.1')) os = 'Windows 7';
   else if (userAgent.includes('Windows NT')) os = 'Windows';
+  else if (userAgent.includes('Mac OS X 10_15')) os = 'macOS Catalina';
+  else if (userAgent.includes('Mac OS X 10_14')) os = 'macOS Mojave';
   else if (userAgent.includes('Mac OS X')) os = 'macOS';
   else if (userAgent.includes('Linux')) os = 'Linux';
   else if (userAgent.includes('Android')) os = 'Android';
-  else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) os = 'iOS';
+  else if (userAgent.includes('iPhone')) os = 'iOS (iPhone)';
+  else if (userAgent.includes('iPad')) os = 'iOS (iPad)';
   
   return `${browser} on ${os}`;
 }
 
 /**
- * Get location from IP (optional - requires GeoIP library)
- * Install: npm install geoip-lite
+ * Get location from IP using geoip-lite
  */
 function getLocationFromIP(ipAddress) {
   try {
-    // Example using geoip-lite (you need to install it)
+    // ✅ Import geoip-lite (must be installed: npm install geoip-lite)
     const geoip = require('geoip-lite');
-    const geo = geoip.lookup(ipAddress);
+    
+    // Handle localhost/private IPs
+    if (!ipAddress || 
+        ipAddress === '::1' || 
+        ipAddress === '127.0.0.1' || 
+        ipAddress.startsWith('192.168.') ||
+        ipAddress.startsWith('10.') ||
+        ipAddress.startsWith('172.')) {
+      return {
+        country: 'Local',
+        city: 'Development',
+      };
+    }
+
+    // Clean IPv6-mapped IPv4 addresses (::ffff:192.168.1.1 -> 192.168.1.1)
+    const cleanIP = ipAddress.replace(/^::ffff:/, '');
+    
+    const geo = geoip.lookup(cleanIP);
     
     if (geo) {
       return {
-        country: geo.country,
+        country: geo.country || 'Unknown',
         city: geo.city || 'Unknown',
       };
     }
+    
+    return {
+      country: 'Unknown',
+      city: 'Unknown',
+    };
   } catch (error) {
-    // Silently fail if geoip-lite is not installed
+    console.error('GeoIP lookup error:', error.message);
+    return {
+      country: 'Unknown',
+      city: 'Unknown',
+    };
   }
-  
-  return {
-    country: 'Unknown',
-    city: 'Unknown',
-  };
 }
 
 module.exports = {
