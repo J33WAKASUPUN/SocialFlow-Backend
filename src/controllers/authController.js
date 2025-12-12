@@ -2,6 +2,8 @@ const authService = require("../services/authService");
 const emailService = require("../services/emailService");
 const cloudinaryService = require("../services/cloudinaryService");
 const logger = require('../utils/logger');
+const User = require('../models/User');
+
 const {
   verifyToken,
   blacklistToken,
@@ -101,7 +103,7 @@ class AuthController {
    */
   async complete2FALogin(req, res, next) {
     try {
-      const { userId, deviceId } = req.body; // ✅ Now requires deviceId
+      const { userId, deviceId } = req.body;
 
       if (!userId) {
         return res.status(400).json({
