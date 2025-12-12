@@ -70,6 +70,14 @@ router.patch(
   authController.changePassword
 );
 
+// Set backup password for Google OAuth users
+router.post(
+  '/set-password',
+  requireAuth,
+  validatePassword,
+  authController.setPassword
+);
+
 router.delete('/account', requireAuth, authController.deleteAccount);
 
 // 2FA routes

@@ -367,6 +367,59 @@ async resetPassword(req, res, next) {
   }
 }
 
+/**
+ * POST /api/v1/auth/set-password
+ * Allow Google OAuth users to set a backup password
+ */
+async setPassword(req, res, next) {
+  try {
+    const { password, confirmPassword } = req.body;
+
+    if (!password || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password and confirmation are required',
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match',
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters',
+      });
+    }
+
+    // Check password complexity
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    
+    if (!hasUpperCase || !hasLowerCase || !hasNumber) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain uppercase, lowercase, and numbers',
+      });
+    }
+
+    const { user } = await authService.setPasswordForGoogleUser(req.user._id, password);
+
+    res.json({
+      success: true,
+      message: 'Backup password set successfully. You can now login with email/password.',
+      data: { user },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
   /**
    * GET /api/v1/auth/test-email (For testing email service)
    */

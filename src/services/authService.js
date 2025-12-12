@@ -452,6 +452,41 @@ async resetPassword(token, newPassword) {
     return { success: true };
   }
 
+/**
+ * Set Password for Google OAuth Users (Backup Login)
+ */
+async setPasswordForGoogleUser(userId, newPassword) {
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Only allow for Google OAuth users who don't have a password
+  if (user.provider !== 'google') {
+    throw new Error('This feature is only for Google OAuth users');
+  }
+
+  if (user.password) {
+    throw new Error('You already have a password set. Use "Change Password" instead.');
+  }
+
+  // Validate password strength
+  if (newPassword.length < 8) {
+    throw new Error('Password must be at least 8 characters');
+  }
+
+  // Set password (will be hashed by pre-save hook)
+  user.password = newPassword;
+  // Keep provider as 'google' so they can still use Google OAuth
+  // Don't change provider - user can login with BOTH methods now
+  await user.save();
+
+  logger.info(`✅ Backup password set for Google OAuth user: ${user.email}`);
+
+  return { success: true, user };
+}
+
   /**
    * Update Profile
    */

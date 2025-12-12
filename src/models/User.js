@@ -302,7 +302,7 @@ userSchema.methods.requires2FAVerification = function(deviceId = null, ipAddress
 // Remove sensitive data when converting to JSON
 userSchema.methods.toJSON = function() {
   const user = this.toObject();
-  delete user.password;
+  delete user.password; // Don't send actual password
   delete user.resetPasswordToken;
   delete user.resetPasswordExpires;
   delete user.verificationToken;
@@ -311,6 +311,9 @@ userSchema.methods.toJSON = function() {
   delete user.invitationTokenExpires;
   delete user.loginAttempts;
   delete user.lockUntil;
+  
+  // Flag to indicate if user has password set (for frontend logic)
+  user.hasPassword = !!this.password;
   
   // Always recalculate avatarUrl
   user.avatarUrl = this.getAvatarUrl();
