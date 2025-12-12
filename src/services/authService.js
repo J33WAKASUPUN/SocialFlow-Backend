@@ -3,6 +3,7 @@ const { generateTokenPair } = require("../utils/jwt");
 const crypto = require("crypto");
 const emailService = require("./emailService");
 const logger = require('../utils/logger');
+const { generateDeviceFingerprint, getDeviceName, getLocationFromIP } = require('../utils/deviceFingerprint'); // ✅ NEW
 
 class AuthService {
   /**
@@ -111,9 +112,9 @@ async register(email, password, name) {
   }
 
   /**
-   * Login User
+   * Login User - WITH DEVICE FINGERPRINTING
    */
-  async login(email, password) {
+  async login(email, password, req) {
     const user = await User.findOne({ email: email.toLowerCase() });
 
     if (!user) {
@@ -151,11 +152,24 @@ async register(email, password, name) {
       await user.save();
     }
 
-    // Check if 2FA is required
-    const requires2FA = user.twoFactorAuth?.enabled && user.requires2FAVerification();
+    // Generate device fingerprint
+    const deviceId = generateDeviceFingerprint(req);
+    const deviceName = getDeviceName(req.headers['user-agent']);
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    const location = getLocationFromIP(ipAddress);
+
+    // Check if 2FA is required (now device-aware)
+    const requires2FA = user.twoFactorAuth?.enabled && 
+                        user.requires2FAVerification(deviceId, ipAddress);
 
     if (requires2FA) {
       // Return partial response - user needs to verify 2FA
+      logger.info(`🔐 2FA required for user ${user.email}`, {
+        reason: user.isDeviceTrusted(deviceId) ? 'inactivity' : 'new_device',
+        deviceName,
+        ipAddress,
+      });
+      
       return {
         user: {
           _id: user._id,
@@ -165,8 +179,20 @@ async register(email, password, name) {
         tokens: null,
         requires2FA: true,
         twoFactorMethod: user.twoFactorAuth.method,
+        deviceId, // Send deviceId to client (needed for complete login)
+        deviceName, // Show user what device is logging in
       };
     }
+
+    // Mark device as trusted
+    user.addTrustedDevice({
+      deviceId,
+      deviceName,
+      fingerprint: deviceId,
+      ipAddress,
+      userAgent: req.headers['user-agent'],
+      location,
+    });
 
     // Update last activity
     user.lastActivityAt = new Date();
@@ -175,21 +201,47 @@ async register(email, password, name) {
     // Generate tokens
     const tokens = await generateTokenPair(user._id);
 
+    logger.info(`✅ Login successful for user ${user.email}`, {
+      deviceName,
+      trusted: true,
+    });
+
     return { user, tokens, requires2FA: false };
   }
 
   /**
-   * Complete login after 2FA verification
+   * Complete login after 2FA verification - WITH DEVICE TRUST
    */
-  async completeLoginAfter2FA(userId) {
+  async completeLoginAfter2FA(userId, deviceId, req) {
     const user = await User.findById(userId);
     if (!user) throw new Error('User not found');
 
+    // Add this device to trusted list after successful 2FA
+    const deviceName = getDeviceName(req.headers['user-agent']);
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    const location = getLocationFromIP(ipAddress);
+
+    user.addTrustedDevice({
+      deviceId,
+      deviceName,
+      fingerprint: deviceId,
+      ipAddress,
+      userAgent: req.headers['user-agent'],
+      location,
+    });
+
     user.lastActivityAt = new Date();
     user.lastLogin = new Date();
+    user.twoFactorAuth.lastVerifiedAt = new Date(); // Update last verification
     await user.save();
 
     const tokens = await generateTokenPair(user._id);
+
+    logger.info(`✅ 2FA completed - device now trusted`, {
+      userId: user._id,
+      email: user.email,
+      deviceName,
+    });
 
     return { user, tokens };
   }

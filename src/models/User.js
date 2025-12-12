@@ -83,6 +83,34 @@ const userSchema = new mongoose.Schema({
   },
   lockUntil: Date,
 
+  // Trusted devices tracking
+    trustedDevices: [{
+    deviceId: {
+      type: String,
+      required: true,
+    },
+    deviceName: String, // e.g., "Chrome on Windows"
+    fingerprint: String, // Browser fingerprint hash
+    ipAddress: String,
+    userAgent: String,
+    location: {
+      country: String,
+      city: String,
+    },
+    lastUsed: {
+      type: Date,
+      default: Date.now,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    expiresAt: {
+      type: Date,
+      default: () => Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+    },
+  }],
+
     // 2FA Settings
   twoFactorAuth: {
     enabled: {
@@ -108,6 +136,15 @@ const userSchema = new mongoose.Schema({
     verificationRequired: {
       type: Boolean,
       default: false,
+    },
+    // Device-based 2FA settings
+    requireOnNewDevice: {
+      type: Boolean,
+      default: true, // Always require 2FA on new device
+    },
+    requireOnNewLocation: {
+      type: Boolean,
+      default: false, // Optional: require on new country
     },
   },
   
@@ -178,6 +215,90 @@ userSchema.methods.incrementLoginAttempts = async function() {
   return this.updateOne(updates);
 };
 
+// Check if device is trusted
+userSchema.methods.isDeviceTrusted = function(deviceId) {
+  if (!this.trustedDevices || this.trustedDevices.length === 0) return false;
+  
+  const device = this.trustedDevices.find(d => 
+    d.deviceId === deviceId && 
+    d.expiresAt > Date.now()
+  );
+  
+  return !!device;
+};
+
+// Add trusted device
+userSchema.methods.addTrustedDevice = function(deviceInfo) {
+  const { deviceId, deviceName, fingerprint, ipAddress, userAgent, location } = deviceInfo;
+  
+  // Remove expired devices
+  this.trustedDevices = this.trustedDevices.filter(d => d.expiresAt > Date.now());
+  
+  // Check if device already exists
+  const existingDevice = this.trustedDevices.find(d => d.deviceId === deviceId);
+  
+  if (existingDevice) {
+    // Update last used and reset expiry
+    existingDevice.lastUsed = Date.now();
+    existingDevice.expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // Reset to 30 days
+    existingDevice.ipAddress = ipAddress; // Update IP
+    if (location) existingDevice.location = location;
+  } else {
+    // Add new device (limit to 10 devices per user)
+    if (this.trustedDevices.length >= 10) {
+      // Remove oldest device
+      this.trustedDevices.sort((a, b) => a.lastUsed - b.lastUsed);
+      this.trustedDevices.shift();
+    }
+
+    this.trustedDevices.push({
+      deviceId,
+      deviceName,
+      fingerprint,
+      ipAddress,
+      userAgent,
+      location,
+      lastUsed: Date.now(),
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+  }
+};
+
+// Remove trusted device
+userSchema.methods.removeTrustedDevice = function(deviceId) {
+  this.trustedDevices = this.trustedDevices.filter(d => d.deviceId !== deviceId);
+};
+
+// Check if 2FA verification is required
+userSchema.methods.requires2FAVerification = function(deviceId = null, ipAddress = null) {
+  if (!this.twoFactorAuth?.enabled) return false;
+  
+  // 1. Check if this is a new/untrusted device
+  if (this.twoFactorAuth.requireOnNewDevice && deviceId) {
+    const isTrusted = this.isDeviceTrusted(deviceId);
+    if (!isTrusted) {
+      return true; // Require 2FA for new device
+    }
+  }
+  
+  // 2. Check inactivity (3+ days) - EXISTING LOGIC
+  const now = new Date();
+  const lastActivity = this.lastActivityAt || this.lastLogin || this.createdAt;
+  const daysSinceActivity = (now - lastActivity) / (1000 * 60 * 60 * 24);
+  
+  if (daysSinceActivity >= 3) {
+    return true; // Require 2FA after 3 days inactive
+  }
+  
+  // 3. Optional: Check new location/IP (implement if needed)
+  // if (this.twoFactorAuth.requireOnNewLocation && ipAddress) {
+  //   // TODO: Implement IP-based location check using GeoIP library
+  // }
+  
+  return false;
+};
+
 // Remove sensitive data when converting to JSON
 userSchema.methods.toJSON = function() {
   const user = this.toObject();
@@ -198,16 +319,16 @@ userSchema.methods.toJSON = function() {
 };
 
 // Check if 2FA verification is required (inactive for 3+ days)
-userSchema.methods.requires2FAVerification = function() {
-  if (!this.twoFactorAuth?.enabled) return false;
+// userSchema.methods.requires2FAVerification = function() {
+//   if (!this.twoFactorAuth?.enabled) return false;
   
-  const now = new Date();
-  const lastActivity = this.lastActivityAt || this.lastLogin || this.createdAt;
-  const daysSinceActivity = (now - lastActivity) / (1000 * 60 * 60 * 24);
+//   const now = new Date();
+//   const lastActivity = this.lastActivityAt || this.lastLogin || this.createdAt;
+//   const daysSinceActivity = (now - lastActivity) / (1000 * 60 * 60 * 24);
   
-  // Require 2FA if inactive for 3+ days
-  return daysSinceActivity >= 3;
-};
+//   // Require 2FA if inactive for 3+ days
+//   return daysSinceActivity >= 3;
+// };
 
 // Check if 2FA is recently verified (within session)
 userSchema.methods.is2FARecentlyVerified = function() {

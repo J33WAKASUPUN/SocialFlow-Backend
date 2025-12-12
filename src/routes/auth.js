@@ -83,6 +83,11 @@ router.post('/2fa/disable', requireAuth, twoFactorController.disable);
 router.post('/2fa/regenerate-backup', requireAuth, twoFactorController.regenerateBackupCodes);
 router.post('/2fa/complete-login', authController.complete2FALogin);
 
+// Trusted Devices Management
+router.get('/trusted-devices', requireAuth, authController.getTrustedDevices);
+router.delete('/trusted-devices/:deviceId', requireAuth, authController.removeTrustedDevice);
+router.delete('/trusted-devices', requireAuth, authController.removeAllTrustedDevices);
+
 // Google OAuth
 router.get('/google', passport.authenticate('google', { 
   scope: ['profile', 'email'],

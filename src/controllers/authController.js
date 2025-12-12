@@ -64,7 +64,8 @@ class AuthController {
         });
       }
 
-      const result = await authService.login(email, password);
+      // Pass req object to authService
+      const result = await authService.login(email, password, req);
 
       // Check if 2FA is required
       if (result.requires2FA) {
@@ -75,6 +76,8 @@ class AuthController {
             requires2FA: true,
             userId: result.user._id,
             twoFactorMethod: result.twoFactorMethod,
+            deviceId: result.deviceId, // Send deviceId to client
+            deviceName: result.deviceName, // Show what device is logging in
           },
         });
       }
@@ -94,12 +97,11 @@ class AuthController {
   }
 
   /**
-   * POST /api/v1/auth/complete-2fa-login
-   * Complete login after 2FA verification
+   * POST /api/v1/auth/2fa/complete-login
    */
   async complete2FALogin(req, res, next) {
     try {
-      const { userId } = req.body;
+      const { userId, deviceId } = req.body; // ✅ Now requires deviceId
 
       if (!userId) {
         return res.status(400).json({
@@ -108,7 +110,15 @@ class AuthController {
         });
       }
 
-      const { user, tokens } = await authService.completeLoginAfter2FA(userId);
+      if (!deviceId) {
+        return res.status(400).json({
+          success: false,
+          message: "Device ID is required",
+        });
+      }
+
+      // Pass req object and deviceId to authService
+      const { user, tokens } = await authService.completeLoginAfter2FA(userId, deviceId, req);
 
       res.json({
         success: true,
@@ -444,6 +454,84 @@ async resetPassword(req, res, next) {
       res.json({
         success: true,
         message: "Account deleted successfully",
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+    /**
+   * GET /api/v1/auth/trusted-devices
+   * Get user's trusted devices
+   */
+  async getTrustedDevices(req, res, next) {
+    try {
+      const user = await User.findById(req.user._id);
+      
+      // Filter out expired devices
+      const activeDevices = user.trustedDevices.filter(d => d.expiresAt > Date.now());
+      
+      res.json({
+        success: true,
+        data: activeDevices.map(d => ({
+          deviceId: d.deviceId,
+          deviceName: d.deviceName,
+          ipAddress: d.ipAddress,
+          location: d.location,
+          lastUsed: d.lastUsed,
+          createdAt: d.createdAt,
+          expiresAt: d.expiresAt,
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+    /**
+   * DELETE /api/v1/auth/trusted-devices/:deviceId
+   * Remove a specific trusted device
+   */
+  async removeTrustedDevice(req, res, next) {
+    try {
+      const { deviceId } = req.params;
+      const user = await User.findById(req.user._id);
+      
+      user.removeTrustedDevice(deviceId);
+      await user.save();
+      
+      logger.info(`Trusted device removed`, {
+        userId: user._id,
+        deviceId: deviceId.substring(0, 16) + '...',
+      });
+      
+      res.json({
+        success: true,
+        message: 'Device removed successfully',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+    /**
+   * DELETE /api/v1/auth/trusted-devices
+   * Remove all trusted devices (force 2FA everywhere)
+   */
+  async removeAllTrustedDevices(req, res, next) {
+    try {
+      const user = await User.findById(req.user._id);
+      user.trustedDevices = [];
+      await user.save();
+      
+      logger.info(`All trusted devices removed`, {
+        userId: user._id,
+        email: user.email,
+      });
+      
+      res.json({
+        success: true,
+        message: 'All trusted devices removed. You will need to verify 2FA on next login.',
       });
     } catch (error) {
       next(error);
