@@ -71,13 +71,14 @@ router.patch(
 
 router.delete('/account', requireAuth, authController.deleteAccount);
 
-// 2FA routes (already rate-limited)
+// 2FA routes
 router.get('/2fa/status', requireAuth, twoFactorController.getStatus);
 router.post('/2fa/setup/totp', requireAuth, twoFactorController.setupTOTP);
 router.post('/2fa/verify-setup', requireAuth, twoFactorLimiter, twoFactorController.verifySetup);
 router.post('/2fa/enable-email', requireAuth, twoFactorController.enableEmail2FA);
-router.post('/2fa/send-code', twoFactorLimiter, twoFactorController.sendCode);
-router.post('/2fa/verify', twoFactorLimiter, twoFactorController.verifyCode);
+// This allows them to work for both Logged In users (Settings) AND Unauthenticated users (Login flow)
+router.post('/2fa/send-code', optionalAuth, twoFactorLimiter, twoFactorController.sendCode);
+router.post('/2fa/verify', optionalAuth, twoFactorLimiter, twoFactorController.verifyCode);
 router.post('/2fa/verify-email-setup', requireAuth, twoFactorLimiter, twoFactorController.verifyEmailSetup);
 router.post('/2fa/disable', requireAuth, twoFactorController.disable);
 router.post('/2fa/regenerate-backup', requireAuth, twoFactorController.regenerateBackupCodes);
