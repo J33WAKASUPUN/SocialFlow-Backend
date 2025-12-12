@@ -3,7 +3,7 @@ const router = express.Router();
 const passport = require('passport');
 const authController = require('../controllers/authController');
 const twoFactorController = require('../controllers/twoFactorController');
-const { requireAuth } = require('../middlewares/auth');
+const { requireAuth, optionalAuth } = require('../middlewares/auth');
 const { 
   authLimiter, 
   forgotPasswordLimiter, 
