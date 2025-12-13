@@ -67,27 +67,66 @@ class BaseProvider {
     throw new Error('getPostAnalytics() must be implemented');
   }
 
-/**
- * Get decrypted access token
- */
-getAccessToken() {
-  if (!this.channel || !this.channel.accessToken) {
-    throw new Error('No access token available');
-  }
-  
-  return this.channel.accessToken;
-}
+  /**
+   * Get decrypted access token with proper error handling
+   */
+  getAccessToken() {
+    if (!this.channel || !this.channel.accessToken) {
+      throw new Error('No access token available');
+    }
+    
+    const token = this.channel.accessToken;
+    
+    // If token looks encrypted, decrypt it manually
+    if (typeof token === 'string' && token.includes(':') && token.split(':').length === 3) {
+      try {
+        const decrypted = encryptionService.decrypt(token);
+        this.log('Token decrypted manually', { 
+          tokenLength: decrypted.length,
+          tokenPreview: decrypted.substring(0, 20) + '...'
+        });
+        return decrypted;
+      } catch (error) {
+        this.logError('Token decryption failed', error);
+        throw new Error('Failed to decrypt access token');
+      }
+    }
+    
+    // Token should be a string and not look encrypted
+    if (!token || typeof token !== 'string') {
+      throw new Error('Invalid access token format');
+    }
 
-/**
- * Get decrypted refresh token
- */
-getRefreshToken() {
-  if (!this.channel || !this.channel.refreshToken) {
-    return null;
+    // Token should be reasonably long (Facebook tokens are 100+ chars)
+    if (token.length < 20) {
+      throw new Error('Access token too short - possibly corrupted');
+    }
+
+    return token;
   }
-  
-  return this.channel.refreshToken;
-}
+
+  /**
+   * Get decrypted refresh token with proper error handling
+   */
+  getRefreshToken() {
+    if (!this.channel || !this.channel.refreshToken) {
+      return null;
+    }
+    
+    const token = this.channel.refreshToken;
+    
+    // If token looks encrypted, decrypt it manually
+    if (typeof token === 'string' && token.includes(':') && token.split(':').length === 3) {
+      try {
+        return encryptionService.decrypt(token);
+      } catch (error) {
+        this.logError('Refresh token decryption failed', error);
+        return null;
+      }
+    }
+    
+    return token;
+  }
 
   /**
    * Check if token is expired
@@ -111,7 +150,10 @@ getRefreshToken() {
    * Log provider error
    */
   logError(action, error) {
-    logger.error(`[${this.provider.toUpperCase()}] ${action}:`, error);
+    logger.error(`[${this.provider.toUpperCase()}] ${action}:`, {
+      message: error.message,
+      stack: error.stack,
+    });
   }
 }
 
