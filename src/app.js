@@ -327,7 +327,7 @@ app.get("/ping", (req, res) => {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
   // ============================================
-  // API ROUTES
+  // API ROUTES - new
   // ============================================
   const authRoutes = require("./routes/auth");
   const organizationRoutes = require("./routes/organizations");
