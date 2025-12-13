@@ -62,30 +62,30 @@ function createApp() {
   
   app.use(mongoSanitize());
 
-  // STRICTER CORS CONFIGURATION
+// STRICTER CORS CONFIGURATION
+  // 1. Get the environment variable and split it by comma
+  const envOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [];
+
+  // 2. Combine with other defaults
   const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:8080',
     'http://localhost:3000',
-    process.env.CLIENT_URL
-  ].filter(Boolean);
+    process.env.CLIENT_URL,
+    ...envOrigins // Spread the array from .env here
+  ].filter(Boolean).map(origin => origin.trim());
 
-  const corsOptions = {
+const corsOptions = {
     origin: function (origin, callback) {
-      // Reject requests with no origin in production
-      if (!origin) {
-        if (process.env.NODE_ENV === 'production') {
-          logger.warn('🚫 CORS blocked request with no origin header');
-          return callback(new Error('Not allowed by CORS - missing origin'));
-        }
-        // Allow in development (for Postman, curl, etc.)
-        return callback(null, true);
-      }
+      // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+      if (!origin) return callback(null, true);
       
       if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
-        logger.warn('🚫 CORS blocked request from:', origin);
+        logger.warn(`🚫 CORS blocked request from: ${origin}`);
+        // Important: Do not return an error immediately if you want to debug.
+        // But for security, failing here is correct.
         callback(new Error('Not allowed by CORS'));
       }
     },
