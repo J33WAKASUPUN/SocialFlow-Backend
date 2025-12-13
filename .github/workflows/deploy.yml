@@ -54,33 +54,33 @@ jobs:
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.VM_HOST }}
-        username: ${{ secrets.VM_USER }}
+        username: ${{ secrets.VM_USERNAME }}
         key: ${{ secrets.VM_SSH_KEY }}
         port: 22
         script: |
           cd /opt/socialflow
-          
+
           # Login to GitHub Container Registry
-          echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          
-          # Pull latest image
-          docker pull ghcr.io/${{ github.repository }}:latest
-          
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+          # Pull latest image (LOWERCASE IMAGE NAME)
+          docker pull ghcr.io/j33wakasupun/socialflow-backend:latest
+
           # Stop and remove old container
           docker stop socialflow-backend || true
           docker rm socialflow-backend || true
-          
-          # Run new container
+
+          # Run new container (using port 5001 to avoid conflict)
           docker run -d \
             --name socialflow-backend \
             --restart unless-stopped \
-            -p 5000:5000 \
+            -p 5001:5000 \
             --env-file /opt/socialflow/.env \
             -v /opt/socialflow/logs:/app/logs \
             -v /opt/socialflow/uploads:/app/uploads \
-            ghcr.io/${{ github.repository }}:latest
-          
+            ghcr.io/j33wakasupun/socialflow-backend:latest
+
           # Clean up old images
           docker image prune -af
-          
+
           echo "Deployment completed successfully!"

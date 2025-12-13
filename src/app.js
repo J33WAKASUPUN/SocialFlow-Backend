@@ -338,20 +338,7 @@ app.get("/ping", (req, res) => {
   const mediaRoutes = require('./routes/media');
   const notificationRoutes = require('./routes/notifications'); 
   const whatsappRoutes = require('./routes/whatsapp');
-
-
-  app.use("/api/v1/auth", authRoutes);
-  app.use("/api/v1/organizations", organizationRoutes);
-  app.use("/api/v1/brands", brandRoutes);
-  app.use("/api/v1/channels", channelRoutes);
-  app.use("/api/v1/posts", postRoutes);
-  app.use("/api", apiLimiter);
-  app.use('/api/v1/analytics', analyticsRoutes);
-  app.use('/api/v1/media', mediaRoutes);
-  app.use('/api/v1/notifications', notificationRoutes);
-  app.use('/api/v1/whatsapp', whatsappRoutes);
-
-
+  
   // API Info Endpoint
   app.get("/api/v1", (req, res) => {
     res.json({
@@ -371,6 +358,17 @@ app.get("/ping", (req, res) => {
       },
     });
   });
+
+  app.use("/api/v1/auth", authRoutes);
+  app.use("/api/v1/organizations", organizationRoutes);
+  app.use("/api/v1/brands", brandRoutes);
+  app.use("/api/v1/channels", channelRoutes);
+  app.use("/api/v1/posts", postRoutes);
+  app.use("/api", apiLimiter);
+  app.use('/api/v1/analytics', analyticsRoutes);
+  app.use('/api/v1/media', mediaRoutes);
+  app.use('/api/v1/notifications', notificationRoutes);
+  app.use('/api/v1/whatsapp', whatsappRoutes);
 
   // ============================================
   // 404 HANDLER
