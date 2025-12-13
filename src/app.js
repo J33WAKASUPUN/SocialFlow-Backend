@@ -62,42 +62,51 @@ function createApp() {
   
   app.use(mongoSanitize());
 
-// STRICTER CORS CONFIGURATION
-  // 1. Get the environment variable and split it by comma
-  const envOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [];
-
-  // 2. Combine with other defaults
-  const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:8080',
-    'http://localhost:3000',
-    process.env.CLIENT_URL,
-    ...envOrigins // Spread the array from .env here
-  ].filter(Boolean).map(origin => origin.trim());
+// STRICTER CORS CONFIGURATION - FIXED VERSION FOR HTTPS
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:8080',
+  'http://localhost:3000',
+  'http://107.172.57.2:5000',
+  'https://socialflow-backend-api.duckdns.org',
+  'https://socialflow-51u9.onrender.com',        // Your HTTPS frontend
+  process.env.CLIENT_URL,
+  process.env.APP_URL
+].filter(Boolean);
 
 const corsOptions = {
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps, curl, or server-to-server)
-      if (!origin) return callback(null, true);
-      
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        logger.warn(`🚫 CORS blocked request from: ${origin}`);
-        // Important: Do not return an error immediately if you want to debug.
-        // But for security, failing here is correct.
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    exposedHeaders: ['Content-Range', 'X-Content-Range'],
-    maxAge: 600,
-  };
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, same-origin requests)
+    if (!origin) {
+      logger.info('✅ CORS: Allowing request with no origin header');
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      logger.info(`✅ CORS: Allowed origin: ${origin}`);
+      callback(null, true);
+    } else {
+      logger.warn(`🚫 CORS blocked request from: ${origin}`);
+      logger.warn(`Allowed origins: ${allowedOrigins.join(', ')}`);
+      callback(new Error(`Not allowed by CORS - Origin: ${origin}`));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin'
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range', 'Set-Cookie'],
+  maxAge: 600,
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+};
 
-  app.use(cors(corsOptions));
-  app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Handle preflight for all routes
 
   // ============================================
   // BODY PARSING
